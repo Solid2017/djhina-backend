@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Djhina Admin — Connexion</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root { --dj-blue:#0000FF; --dj-dark:#00071A; --dj-surface:#000F30; }
+    body { background: linear-gradient(135deg, var(--dj-dark) 0%, #001060 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Segoe UI',sans-serif; }
+    .login-card { background: var(--dj-surface); border:1px solid rgba(0,0,255,.3); border-radius:16px; padding:2.5rem; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,255,.2); }
+    .logo { text-align:center; margin-bottom:2rem; }
+    .logo h1 { color:#fff; font-size:2rem; font-weight:800; letter-spacing:2px; }
+    .logo h1 span { color:var(--dj-blue); }
+    .logo p { color:#7ea3ff; font-size:.85rem; margin:0; }
+    .form-control { background:#001247; border:1px solid rgba(0,0,255,.4); color:#fff; border-radius:8px; padding:.75rem 1rem; }
+    .form-control:focus { background:#001247; border-color:var(--dj-blue); color:#fff; box-shadow:0 0 0 3px rgba(0,0,255,.2); }
+    .form-control::placeholder { color:#4a6fa5; }
+    .form-label { color:#7ea3ff; font-size:.875rem; font-weight:500; }
+    .btn-login { background: linear-gradient(135deg, #0000FF, #0000CC); border:none; border-radius:8px; padding:.85rem; font-size:1rem; font-weight:600; letter-spacing:.5px; transition:all .3s; }
+    .btn-login:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,255,.4); }
+    .alert-error { background:rgba(220,38,38,.15); border:1px solid rgba(220,38,38,.4); color:#fca5a5; border-radius:8px; padding:.75rem 1rem; font-size:.875rem; display:none; }
+    .input-group-text { background:#001247; border:1px solid rgba(0,0,255,.4); color:#4a6fa5; cursor:pointer; border-left:none; }
+    .input-group .form-control { border-right:none; }
+    .badge-role { background:rgba(0,0,255,.2); color:#7ea3ff; font-size:.75rem; border-radius:20px; padding:.25rem .75rem; display:inline-block; margin-top:.5rem; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="logo">
+      <h1><span>Djhina</span> Admin</h1>
+      <p>Plateforme événementielle du Tchad</p>
+      <span class="badge-role"><i class="bi bi-shield-check me-1"></i>Espace administration</span>
+    </div>
+
+    <div class="alert-error" id="alertError">
+      <i class="bi bi-exclamation-triangle me-2"></i><span id="alertMsg"></span>
+    </div>
+
+    <form id="loginForm">
+      <div class="mb-3">
+        <label class="form-label">Adresse email</label>
+        <input type="email" id="email" class="form-control" placeholder="admin@djhina.igotech.tech" required autocomplete="email">
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Mot de passe</label>
+        <div class="input-group">
+          <input type="password" id="password" class="form-control" placeholder="••••••••••" required autocomplete="current-password">
+          <span class="input-group-text" onclick="togglePwd()"><i class="bi bi-eye" id="eyeIcon"></i></span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-login w-100" id="btnLogin">
+        <span id="btnText"><i class="bi bi-box-arrow-in-right me-2"></i>Se connecter</span>
+        <span id="btnSpinner" class="d-none"><span class="spinner-border spinner-border-sm me-2"></span>Connexion...</span>
+      </button>
+    </form>
+
+    <div class="text-center mt-3">
+      <small class="text-muted">Djhina v1.0 — Tchad <i class="bi bi-flag"></i></small>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+
+    function togglePwd() {
+      const p = document.getElementById('password');
+      const e = document.getElementById('eyeIcon');
+      if (p.type === 'password') { p.type = 'text'; e.className = 'bi bi-eye-slash'; }
+      else { p.type = 'password'; e.className = 'bi bi-eye'; }
+    }
+
+    function showError(msg) {
+      const a = document.getElementById('alertError');
+      document.getElementById('alertMsg').textContent = msg;
+      a.style.display = 'block';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      document.getElementById('alertError').style.display = 'none';
+      document.getElementById('btnText').classList.add('d-none');
+      document.getElementById('btnSpinner').classList.remove('d-none');
+      document.getElementById('btnLogin').disabled = true;
+
+      try {
+        const res = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email:    document.getElementById('email').value,
+            password: document.getElementById('password').value,
+          })
+        });
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.message || 'Erreur de connexion.');
+
+        if (!['admin', 'organizer'].includes(data.data.user.role)) {
+          throw new Error('Accès refusé. Rôle insuffisant.');
+        }
+
+        localStorage.setItem('dj_token',   data.data.token);
+        localStorage.setItem('dj_refresh', data.data.refreshToken);
+        localStorage.setItem('dj_user',    JSON.stringify(data.data.user));
+
+        window.location.href = 'index.html';
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        document.getElementById('btnText').classList.remove('d-none');
+        document.getElementById('btnSpinner').classList.add('d-none');
+        document.getElementById('btnLogin').disabled = false;
+      }
+    });
+
+    // Rediriger si déjà connecté
+    if (localStorage.getItem('dj_token')) window.location.href = 'index.html';
+  </script>
+</body>
+</html>

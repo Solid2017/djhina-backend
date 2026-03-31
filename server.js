@@ -12,7 +12,17 @@ const PORT = process.env.PORT || 3000;
 
 // ── Sécurité ─────────────────────────────────────────────────
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // pour servir les images
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      fontSrc:     ["'self'", "cdn.jsdelivr.net"],
+      imgSrc:      ["'self'", "data:", "blob:"],
+      connectSrc:  ["'self'"],
+    },
+  },
 }));
 
 app.use(cors({
@@ -49,12 +59,43 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
 app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
 
+// ── Interface admin ───────────────────────────────────────────
+app.use('/admin', express.static(path.join(__dirname, 'public/admin'), {
+  index: 'login.html',
+}));
+app.get('/admin', (req, res) => res.redirect('/admin/login.html'));
+
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/auth',       authLimiter, require('./src/routes/auth'));
 app.use('/api/events',                  require('./src/routes/events'));
 app.use('/api/tickets',                 require('./src/routes/tickets'));
 app.use('/api/admin',                   require('./src/routes/admin'));
 app.use('/api/organizer',               require('./src/routes/organizer'));
+
+// ── Page d'accueil ───────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    app:     '🎭 Djhina API',
+    version: '1.0.0',
+    description: 'Plateforme événementielle du Tchad',
+    status:  'En ligne',
+    endpoints: {
+      auth:       '/api/auth',
+      events:     '/api/events',
+      tickets:    '/api/tickets',
+      organizer:  '/api/organizer',
+      admin:      '/api/admin',
+      health:     '/health',
+      uploads:    '/uploads',
+    },
+    docs: {
+      login:    'POST /api/auth/login',
+      register: 'POST /api/auth/register',
+      events:   'GET  /api/events',
+    },
+  });
+});
 
 // ── Health check ─────────────────────────────────────────────
 app.get('/health', (req, res) => {
