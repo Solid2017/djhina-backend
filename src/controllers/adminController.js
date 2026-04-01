@@ -199,17 +199,27 @@ exports.featureEvent = async (req, res) => {
 
 // ── GET /api/admin/payments ──────────────────────────────────
 exports.listPayments = async (req, res) => {
-  const { page = 1, limit = 20 } = req.query;
+  const { page = 1, limit = 20, status, user_id, event_id } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
-  const [[{ total }]] = await pool.execute('SELECT COUNT(*) AS total FROM payments');
+  const where  = ['1=1'];
+  const params = [];
+  if (status)   { where.push('p.status = ?');   params.push(status); }
+  if (user_id)  { where.push('p.user_id = ?');  params.push(user_id); }
+  if (event_id) { where.push('p.event_id = ?'); params.push(event_id); }
+
+  const wc = where.join(' AND ');
+  const [[{ total }]] = await pool.execute(`SELECT COUNT(*) AS total FROM payments p WHERE ${wc}`, params);
   const [payments] = await pool.execute(
-    `SELECT p.*, u.name AS user_name, e.title AS event_title
+    `SELECT p.*, u.name AS user_name, e.title AS event_title,
+       tt.name AS ticket_type_name
      FROM payments p
-     JOIN users  u ON p.user_id  = u.id
-     JOIN events e ON p.event_id = e.id
+     JOIN users       u  ON p.user_id       = u.id
+     JOIN events      e  ON p.event_id      = e.id
+     LEFT JOIN ticket_types tt ON p.ticket_type_id = tt.id
+     WHERE ${wc}
      ORDER BY p.created_at DESC LIMIT ? OFFSET ?`,
-    [parseInt(limit), offset]
+    [...params, parseInt(limit), offset]
   );
 
   return res.json({
@@ -217,6 +227,143 @@ exports.listPayments = async (req, res) => {
     data: payments,
     meta: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
   });
+};
+
+// ── GET /api/admin/payments/:id ──────────────────────────────
+exports.getPayment = async (req, res) => {
+  const [[payment]] = await pool.execute(
+    `SELECT p.*, u.name AS user_name, u.email AS user_email,
+       e.title AS event_title, tt.name AS ticket_type_name
+     FROM payments p
+     JOIN users       u  ON p.user_id       = u.id
+     JOIN events      e  ON p.event_id      = e.id
+     LEFT JOIN ticket_types tt ON p.ticket_type_id = tt.id
+     WHERE p.id = ?`,
+    [req.params.id]
+  );
+  if (!payment) return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+
+  // tickets associés
+  const [tickets] = await pool.execute(
+    'SELECT ticket_number, status, holder_name FROM tickets WHERE payment_id = ?',
+    [req.params.id]
+  );
+
+  return res.json({ success: true, data: { ...payment, tickets } });
+};
+
+// ── PUT /api/admin/payments/:id/status ───────────────────────
+exports.updatePaymentStatus = async (req, res) => {
+  const { status, reason } = req.body;
+  const valid = ['pending', 'completed', 'failed', 'refunded'];
+  if (!valid.includes(status)) {
+    return res.status(400).json({ success: false, message: `Statut invalide. Valeurs acceptées : ${valid.join(', ')}` });
+  }
+
+  const [[payment]] = await pool.execute('SELECT id, status, event_id FROM payments WHERE id = ?', [req.params.id]);
+  if (!payment) return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+
+  await pool.execute(
+    'UPDATE payments SET status = ?, refund_reason = ? WHERE id = ?',
+    [status, reason || null, req.params.id]
+  );
+
+  // Si remboursé → annuler les tickets associés
+  if (status === 'refunded') {
+    await pool.execute(
+      "UPDATE tickets SET status = 'cancelled' WHERE payment_id = ?",
+      [req.params.id]
+    );
+    // MAJ compteur
+    const [[{ qty }]] = await pool.execute('SELECT quantity FROM payments WHERE id = ?', [req.params.id]);
+    if (qty) {
+      const [[pay]] = await pool.execute('SELECT ticket_type_id, quantity FROM payments WHERE id = ?', [req.params.id]);
+      if (pay) {
+        await pool.execute('UPDATE ticket_types SET sold = GREATEST(0, sold - ?) WHERE id = ?', [pay.quantity, pay.ticket_type_id]);
+        await pool.execute('UPDATE events SET registered = GREATEST(0, registered - ?) WHERE id = ?', [pay.quantity, payment.event_id]);
+      }
+    }
+  }
+
+  return res.json({ success: true, message: `Statut mis à jour : ${status}.` });
+};
+
+// ── GET /api/admin/tickets ───────────────────────────────────
+exports.listTickets = async (req, res) => {
+  const { page = 1, limit = 20, status, event_id, user_id, search } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const where  = ['1=1'];
+  const params = [];
+  if (status)   { where.push('t.status = ?');          params.push(status); }
+  if (event_id) { where.push('t.event_id = ?');        params.push(event_id); }
+  if (user_id)  { where.push('t.user_id = ?');         params.push(user_id); }
+  if (search)   { where.push('(t.ticket_number LIKE ? OR t.holder_name LIKE ? OR t.holder_email LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+
+  const wc = where.join(' AND ');
+  const [[{ total }]] = await pool.execute(`SELECT COUNT(*) AS total FROM tickets t WHERE ${wc}`, params);
+  const [tickets] = await pool.execute(
+    `SELECT t.ticket_number, t.holder_name, t.holder_email, t.holder_phone,
+       t.status, t.price_paid, t.currency, t.created_at, t.used_at,
+       e.title AS event_title, e.date AS event_date,
+       tt.name AS ticket_type_name,
+       u.name AS buyer_name
+     FROM tickets t
+     JOIN events       e  ON t.event_id      = e.id
+     JOIN ticket_types tt ON t.ticket_type_id = tt.id
+     JOIN users        u  ON t.user_id        = u.id
+     WHERE ${wc}
+     ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
+    [...params, parseInt(limit), offset]
+  );
+
+  return res.json({
+    success: true,
+    data: tickets,
+    meta: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
+  });
+};
+
+// ── GET /api/admin/tickets/:number ───────────────────────────
+exports.getTicket = async (req, res) => {
+  const [[ticket]] = await pool.execute(
+    `SELECT t.*,
+       e.title AS event_title, e.date AS event_date, e.location AS event_location,
+       tt.name AS ticket_type_name, tt.price AS ticket_type_price,
+       u.name AS buyer_name, u.email AS buyer_email,
+       p.transaction_id, p.provider, p.phone AS payment_phone, p.status AS payment_status
+     FROM tickets t
+     JOIN events       e  ON t.event_id      = e.id
+     JOIN ticket_types tt ON t.ticket_type_id = tt.id
+     JOIN users        u  ON t.user_id        = u.id
+     LEFT JOIN payments p ON t.payment_id     = p.id
+     WHERE t.ticket_number = ?`,
+    [req.params.number]
+  );
+  if (!ticket) return res.status(404).json({ success: false, message: 'Billet introuvable.' });
+  return res.json({ success: true, data: ticket });
+};
+
+// ── PUT /api/admin/tickets/:number/cancel ────────────────────
+exports.cancelTicket = async (req, res) => {
+  const { reason } = req.body;
+  const [[ticket]] = await pool.execute(
+    'SELECT id, status, event_id, ticket_type_id FROM tickets WHERE ticket_number = ?',
+    [req.params.number]
+  );
+  if (!ticket) return res.status(404).json({ success: false, message: 'Billet introuvable.' });
+  if (ticket.status === 'cancelled') {
+    return res.status(409).json({ success: false, message: 'Ce billet est déjà annulé.' });
+  }
+
+  await pool.execute(
+    "UPDATE tickets SET status = 'cancelled', cancel_reason = ? WHERE id = ?",
+    [reason || null, ticket.id]
+  );
+  await pool.execute('UPDATE ticket_types SET sold = GREATEST(0, sold - 1) WHERE id = ?', [ticket.ticket_type_id]);
+  await pool.execute('UPDATE events SET registered = GREATEST(0, registered - 1) WHERE id = ?', [ticket.event_id]);
+
+  return res.json({ success: true, message: 'Billet annulé.' });
 };
 
 // ── GET /api/admin/scan-logs ─────────────────────────────────

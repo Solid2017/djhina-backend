@@ -59,6 +59,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
 app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
 
+// ── Ticket viewer (public, HTML) ──────────────────────────────
+const { viewTicket } = require('./src/controllers/ticketController');
+app.get('/tickets/:number/view', viewTicket);
+
 // ── Interface admin ───────────────────────────────────────────
 app.use('/admin', express.static(path.join(__dirname, 'public/admin'), {
   index: 'login.html',
@@ -66,11 +70,12 @@ app.use('/admin', express.static(path.join(__dirname, 'public/admin'), {
 app.get('/admin', (req, res) => res.redirect('/admin/login.html'));
 
 // ── Routes ────────────────────────────────────────────────────
-app.use('/api/auth',       authLimiter, require('./src/routes/auth'));
-app.use('/api/events',                  require('./src/routes/events'));
-app.use('/api/tickets',                 require('./src/routes/tickets'));
-app.use('/api/admin',                   require('./src/routes/admin'));
-app.use('/api/organizer',               require('./src/routes/organizer'));
+app.use('/api/auth',          authLimiter, require('./src/routes/auth'));
+app.use('/api/events',                     require('./src/routes/events'));
+app.use('/api/tickets',                    require('./src/routes/tickets'));
+app.use('/api/notifications',              require('./src/routes/notifications'));
+app.use('/api/admin',                      require('./src/routes/admin'));
+app.use('/api/organizer',                  require('./src/routes/organizer'));
 
 // ── Page d'accueil ───────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -81,13 +86,17 @@ app.get('/', (req, res) => {
     description: 'Plateforme événementielle du Tchad',
     status:  'En ligne',
     endpoints: {
-      auth:       '/api/auth',
-      events:     '/api/events',
-      tickets:    '/api/tickets',
-      organizer:  '/api/organizer',
-      admin:      '/api/admin',
-      health:     '/health',
-      uploads:    '/uploads',
+      auth:             '/api/auth',
+      events:           '/api/events',
+      ticketTypes:      '/api/events/:id/ticket-types',
+      comments:         '/api/events/:id/comments',
+      tickets:          '/api/tickets',
+      notifications:    '/api/notifications',
+      organizer:        '/api/organizer',
+      admin:            '/api/admin',
+      ticketViewer:     '/tickets/:number/view',
+      health:           '/health',
+      uploads:          '/uploads',
     },
     docs: {
       login:    'POST /api/auth/login',

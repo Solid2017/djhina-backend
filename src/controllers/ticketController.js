@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const { pool } = require('../config/database');
+const renderTicket = require('../templates/ticketTemplate');
 
 function generateTicketNumber() {
   const ts   = Date.now().toString(36).toUpperCase();
@@ -175,6 +176,38 @@ exports.getTicket = async (req, res) => {
 
   if (!ticket) return res.status(404).json({ success: false, message: 'Billet introuvable.' });
   return res.json({ success: true, data: ticket });
+};
+
+// ── GET /tickets/:number/view  (public — HTML) ───────────────
+exports.viewTicket = async (req, res) => {
+  const [[ticket]] = await pool.execute(
+    `SELECT t.*,
+       e.title       AS event_title,
+       e.date        AS event_date,
+       e.time        AS event_time,
+       e.location    AS event_location,
+       e.city        AS event_city,
+       e.cover_image AS event_cover,
+       tt.name       AS ticket_type_name,
+       tt.color      AS ticket_type_color,
+       c.label       AS category_label
+     FROM tickets t
+     JOIN events       e  ON t.event_id      = e.id
+     JOIN ticket_types tt ON t.ticket_type_id = tt.id
+     LEFT JOIN categories c ON e.category_id  = c.id
+     WHERE t.ticket_number = ?`,
+    [req.params.number]
+  );
+
+  if (!ticket) {
+    return res.status(404).send(`
+      <!DOCTYPE html><html><body style="background:#00071A;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center">
+        <div><h2 style="color:#f87171">Billet introuvable</h2><p style="color:#7ea3ff;margin-top:.5rem">Le numéro de billet "${req.params.number}" n'existe pas.</p></div>
+      </body></html>`);
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(renderTicket(ticket));
 };
 
 // ── POST /api/tickets/verify ─────────────────────────────────
