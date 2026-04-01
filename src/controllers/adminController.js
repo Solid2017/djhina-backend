@@ -45,16 +45,19 @@ exports.stats = async (req, res) => {
 
 // ── GET /api/admin/users ─────────────────────────────────────
 exports.listUsers = async (req, res) => {
-  const { role, search, page = 1, limit = 20 } = req.query;
+  const { role, search, is_active, page = 1, limit = 20 } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   const where  = ['1=1'];
   const params = [];
 
-  if (role)   { where.push('role = ?');                                 params.push(role); }
+  if (role)      { where.push('role = ?');                              params.push(role); }
+  if (is_active !== undefined && is_active !== '') {
+    where.push('is_active = ?');                                        params.push(parseInt(is_active));
+  }
   if (search) {
-    where.push('(name LIKE ? OR email LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+    where.push('(name LIKE ? OR email LIKE ? OR phone LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
   const whereClause = where.join(' AND ');
@@ -63,10 +66,11 @@ exports.listUsers = async (req, res) => {
     `SELECT COUNT(*) AS total FROM users WHERE ${whereClause}`, params
   );
   const [users] = await pool.execute(
-    `SELECT id, name, email, phone, role, avatar, country, city, is_active, is_verified, last_login, created_at
+    `SELECT id, name, email, phone, role, avatar, country, city, bio,
+            is_active, is_verified, last_login, created_at
      FROM users WHERE ${whereClause}
-     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+     ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${offset}`,
+    params
   );
 
   return res.json({

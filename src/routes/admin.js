@@ -4,45 +4,48 @@ const notifCtrl = require('../controllers/notificationController');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
 
+// Wrapper qui catch les erreurs async et les passe à Express
+const w = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 // Toutes les routes admin nécessitent le rôle "admin"
 router.use(authenticate, requireRole('admin'));
 
 // ── Stats globales ────────────────────────────────────────────
-router.get('/stats', ctrl.stats);
+router.get('/stats', w(ctrl.stats));
 
 // ── Utilisateurs — CRUD complet ───────────────────────────────
-router.get   ('/users',        ctrl.listUsers);
-router.post  ('/users',        ctrl.createUser);
-router.get   ('/users/:id',    ctrl.getUser);
-router.put   ('/users/:id',    ctrl.updateUser);
-router.delete('/users/:id',    ctrl.deleteUser);
+router.get   ('/users',        w(ctrl.listUsers));
+router.post  ('/users',        w(ctrl.createUser));
+router.get   ('/users/:id',    w(ctrl.getUser));
+router.put   ('/users/:id',    w(ctrl.updateUser));
+router.delete('/users/:id',    w(ctrl.deleteUser));
 
 // ── Événements ────────────────────────────────────────────────
-router.get('/events',                  ctrl.listEvents);
-router.get('/events/:id',              ctrl.getEvent);
-router.put('/events/:id/status',       ctrl.setEventStatus);
-router.put('/events/:id/feature',      ctrl.featureEvent);
+router.get('/events',                  w(ctrl.listEvents));
+router.get('/events/:id',              w(ctrl.getEvent));
+router.put('/events/:id/status',       w(ctrl.setEventStatus));
+router.put('/events/:id/feature',      w(ctrl.featureEvent));
 
 // ── Tickets — lecture + annulation ───────────────────────────
-router.get('/tickets',                 ctrl.listTickets);
-router.get('/tickets/:number',         ctrl.getTicket);
-router.put('/tickets/:number/cancel',  ctrl.cancelTicket);
+router.get('/tickets',                 w(ctrl.listTickets));
+router.get('/tickets/:number',         w(ctrl.getTicket));
+router.put('/tickets/:number/cancel',  w(ctrl.cancelTicket));
 
 // ── Paiements — lecture + changement statut ───────────────────
-router.get('/payments',                ctrl.listPayments);
-router.get('/payments/:id',            ctrl.getPayment);
-router.put('/payments/:id/status',     ctrl.updatePaymentStatus);
+router.get('/payments',                w(ctrl.listPayments));
+router.get('/payments/:id',            w(ctrl.getPayment));
+router.put('/payments/:id/status',     w(ctrl.updatePaymentStatus));
 
 // ── Logs de scan ──────────────────────────────────────────────
-router.get('/scan-logs',               ctrl.scanLogs);
+router.get('/scan-logs',               w(ctrl.scanLogs));
 
 // ── Catégories — CRUD complet ─────────────────────────────────
-router.get   ('/categories',        ctrl.listCategories);
-router.post  ('/categories',        ctrl.createCategory);
-router.put   ('/categories/:id',    ctrl.updateCategory);
-router.delete('/categories/:id',    ctrl.deleteCategory);
+router.get   ('/categories',        w(ctrl.listCategories));
+router.post  ('/categories',        w(ctrl.createCategory));
+router.put   ('/categories/:id',    w(ctrl.updateCategory));
+router.delete('/categories/:id',    w(ctrl.deleteCategory));
 
 // ── Notifications broadcast ───────────────────────────────────
-router.post('/notifications/broadcast', notifCtrl.broadcast);
+router.post('/notifications/broadcast', w(notifCtrl.broadcast));
 
 module.exports = router;
