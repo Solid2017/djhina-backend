@@ -9,8 +9,12 @@ function toDatetimeLocal(d) {
 
 /* ── Global error handler (debug) ── */
 window.addEventListener('unhandledrejection', e => {
+  // apiFetch retourne null sur erreur réseau — ignorer les rejets liés
+  if (e.reason?.message?.includes('Failed to fetch')) {
+    e.preventDefault(); // empêche l'affichage dans la console
+    return;
+  }
   console.error('[Djhina Admin] Unhandled rejection:', e.reason);
-  toast('Erreur inattendue — voir console', 'error');
 });
 
 /* ── Submit button helper ── */
@@ -67,13 +71,27 @@ document.querySelectorAll('.nav-item[data-section]').forEach(el => {
 
 /* ── Section loader ── */
 function loadSection(section) {
-  const loaders = { dashboard: loadDashboard, users: loadUsers, events: loadEvents, tickets: loadTickets, payments: loadPayments, scanlogs: loadScanLogs, categories: loadCategories };
-  if (loaders[section]) loaders[section]();
+  const loaders = {
+    dashboard:  loadDashboard,
+    users:      loadUsers,
+    events:     loadEvents,
+    tickets:    loadTickets,
+    payments:   loadPayments,
+    scanlogs:   loadScanLogs,
+    categories: loadCategories,
+  };
+  if (loaders[section]) {
+    Promise.resolve(loaders[section]()).catch(err => {
+      console.error('[loadSection]', section, err);
+      toast(`Impossible de charger ${section} — serveur inaccessible ?`, 'error');
+    });
+  }
 }
 
 /* ══════════════════════ DASHBOARD ══════════════════════ */
 async function loadDashboard() {
-  const data = await apiFetch('/api/admin/stats');
+  let data;
+  try { data = await apiFetch('/api/admin/stats'); } catch { return; }
   if (!data?.success) return;
   const s = data.data;
 
@@ -111,7 +129,8 @@ let usersPage = 1, usersRole = '', usersSearch = '';
 
 async function loadUsers() {
   const params = new URLSearchParams({ page: usersPage, limit: 15, ...(usersRole && { role: usersRole }), ...(usersSearch && { search: usersSearch }) });
-  const data = await apiFetch(`/api/admin/users?${params}`);
+  let data;
+  try { data = await apiFetch(`/api/admin/users?${params}`); } catch { return; }
   if (!data?.success) return;
 
   const tbody = document.getElementById('usersTbody');
@@ -186,7 +205,8 @@ let eventsPage = 1, eventsStatus = '';
 
 async function loadEvents() {
   const params = new URLSearchParams({ page: eventsPage, limit: 15, ...(eventsStatus && { status: eventsStatus }) });
-  const data = await apiFetch(`/api/admin/events?${params}`);
+  let data;
+  try { data = await apiFetch(`/api/admin/events?${params}`); } catch { return; }
   if (!data?.success) return;
 
   const tbody = document.getElementById('eventsTbody');
@@ -437,7 +457,8 @@ async function loadTickets() {
     ...(ticketsStatus && { status: ticketsStatus }),
     ...(ticketsSearch && { search: ticketsSearch }),
   });
-  const data = await apiFetch(`/api/admin/tickets?${params}`);
+  let data;
+  try { data = await apiFetch(`/api/admin/tickets?${params}`); } catch { return; }
   if (!data?.success) return;
 
   const tbody = document.getElementById('ticketsTbody');
@@ -541,7 +562,8 @@ async function loadPayments() {
     page: paymentsPage, limit: 20,
     ...(paymentsStatus && { status: paymentsStatus }),
   });
-  const data = await apiFetch(`/api/admin/payments?${params}`);
+  let data;
+  try { data = await apiFetch(`/api/admin/payments?${params}`); } catch { return; }
   if (!data?.success) return;
 
   const tbody = document.getElementById('paymentsTbody');
@@ -643,7 +665,8 @@ async function quickPaymentStatus(id, status) {
 
 /* ══════════════════════ SCAN LOGS ══════════════════════ */
 async function loadScanLogs() {
-  const data = await apiFetch('/api/admin/scan-logs?limit=50');
+  let data;
+  try { data = await apiFetch('/api/admin/scan-logs?limit=50'); } catch { return; }
   if (!data?.success) return;
 
   const tbody = document.getElementById('scansTbody');
@@ -660,7 +683,8 @@ async function loadScanLogs() {
 
 /* ══════════════════════ CATEGORIES ══════════════════════ */
 async function loadCategories() {
-  const data = await apiFetch('/api/admin/categories');
+  let data;
+  try { data = await apiFetch('/api/admin/categories'); } catch { return; }
   if (!data?.success) return;
 
   const grid = document.getElementById('categoriesGrid');
