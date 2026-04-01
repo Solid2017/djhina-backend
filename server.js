@@ -15,12 +15,13 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
     directives: {
-      defaultSrc:  ["'self'"],
-      scriptSrc:   ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
-      styleSrc:    ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
-      fontSrc:     ["'self'", "cdn.jsdelivr.net"],
-      imgSrc:      ["'self'", "data:", "blob:"],
-      connectSrc:  ["'self'"],
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      scriptSrcAttr:  ["'unsafe-inline'"],   // autorise onclick=, onchange=, etc.
+      styleSrc:       ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
+      fontSrc:        ["'self'", "cdn.jsdelivr.net"],
+      imgSrc:         ["'self'", "data:", "blob:"],
+      connectSrc:     ["'self'"],
     },
   },
 }));
