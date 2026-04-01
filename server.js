@@ -65,8 +65,17 @@ const { viewTicket } = require('./src/controllers/ticketController');
 app.get('/tickets/:number/view', viewTicket);
 
 // ── Interface admin ───────────────────────────────────────────
-app.use('/admin', express.static(path.join(__dirname, 'public/admin'), {
+// Cache désactivé pour les fichiers JS/CSS admin (évite les versions obsolètes en cache)
+app.use('/admin', (req, res, next) => {
+  if (/\.(js|css)$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+}, express.static(path.join(__dirname, 'public/admin'), {
   index: 'login.html',
+  etag:  false,
 }));
 app.get('/admin', (req, res) => res.redirect('/admin/login.html'));
 
