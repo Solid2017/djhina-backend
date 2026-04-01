@@ -17,9 +17,9 @@ app.use(helmet({
     directives: {
       defaultSrc:     ["'self'"],
       scriptSrc:      ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
-      scriptSrcAttr:  ["'unsafe-inline'"],   // autorise onclick=, onchange=, etc.
-      styleSrc:       ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net"],
-      fontSrc:        ["'self'", "cdn.jsdelivr.net"],
+      scriptSrcAttr:  ["'unsafe-inline'"],          // onclick=, onchange=, onsubmit=…
+      styleSrc:       ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "fonts.googleapis.com"],
+      fontSrc:        ["'self'", "data:", "cdn.jsdelivr.net", "fonts.gstatic.com"],
       imgSrc:         ["'self'", "data:", "blob:"],
       connectSrc:     ["'self'"],
     },
