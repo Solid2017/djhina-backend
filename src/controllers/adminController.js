@@ -92,8 +92,8 @@ exports.getUser = async (req, res) => {
 
 // ── PUT /api/admin/users/:id ─────────────────────────────────
 exports.updateUser = async (req, res) => {
-  const { name, email, role, is_active, is_verified, phone, country } = req.body;
-  const allowed = { name, email, role, is_active, is_verified, phone, country };
+  const { name, email, role, is_active, is_verified, phone, country, city, bio } = req.body;
+  const allowed = { name, email, role, is_active, is_verified, phone, country, city, bio };
 
   const fields = [];
   const values = [];
@@ -121,7 +121,7 @@ exports.deleteUser = async (req, res) => {
 
 // ── POST /api/admin/users ────────────────────────────────────
 exports.createUser = async (req, res) => {
-  const { name, email, phone, password, role = 'user', country } = req.body;
+  const { name, email, phone, password, role = 'user', country, city, bio } = req.body;
 
   const [exists] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
   if (exists.length) return res.status(409).json({ success: false, message: 'Email déjà utilisé.' });
@@ -130,8 +130,8 @@ exports.createUser = async (req, res) => {
   const id   = uuidv4();
 
   await pool.execute(
-    'INSERT INTO users (id, name, email, phone, password, role, country, is_verified) VALUES (?,?,?,?,?,?,?,1)',
-    [id, name, email, phone || null, hash, role, country || 'Tchad']
+    'INSERT INTO users (id, name, email, phone, password, role, country, city, bio, is_verified) VALUES (?,?,?,?,?,?,?,?,?,1)',
+    [id, name, email, phone || null, hash, role, country || 'Tchad', city || null, bio || null]
   );
 
   return res.status(201).json({ success: true, message: 'Utilisateur créé.', data: { id } });

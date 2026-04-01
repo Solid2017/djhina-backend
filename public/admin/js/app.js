@@ -61,7 +61,7 @@ function navigate(section) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('sec-' + section).classList.add('active');
   document.querySelector(`[data-section="${section}"]`).classList.add('active');
-  document.getElementById('topbarTitle').textContent = { dashboard:'Tableau de bord', users:'Utilisateurs', events:'Événements', tickets:'Tickets', payments:'Paiements', scanlogs:'Logs de scan', categories:'Catégories' }[section] || section;
+  document.getElementById('topbarTitle').textContent = { dashboard:'Tableau de bord', organizers:'Organisateurs', users:'Utilisateurs', events:'Événements', tickets:'Tickets', payments:'Paiements', scanlogs:'Logs de scan', categories:'Catégories' }[section] || section;
   loadSection(section);
 }
 
@@ -79,6 +79,7 @@ function loadSection(section) {
     payments:   loadPayments,
     scanlogs:   loadScanLogs,
     categories: loadCategories,
+    organizers: loadOrganizers,
   };
   if (loaders[section]) {
     Promise.resolve(loaders[section]()).catch(err => {
@@ -661,6 +662,229 @@ async function quickPaymentStatus(id, status) {
   });
   if (data?.success) { toast(`Paiement mis à jour : ${status}`, 'success'); loadPayments(); }
   else toast(data?.message || 'Erreur', 'error');
+}
+
+/* ══════════════════════ ORGANISATEURS ══════════════════════ */
+let orgsPage = 1, orgsSearch = '', orgsActive = '';
+
+// Couleurs pour les avatars organisateurs
+const ORG_COLORS = ['#0000FF','#7c3aed','#0891b2','#d97706','#16a34a','#dc2626','#db2777','#059669'];
+function orgColor(name) { let h=0; for(let c of name) h=(h*31+c.charCodeAt(0))&0xffff; return ORG_COLORS[h % ORG_COLORS.length]; }
+
+async function loadOrganizers() {
+  const params = new URLSearchParams({
+    page: orgsPage, limit: 12, role: 'organizer',
+    ...(orgsSearch && { search: orgsSearch }),
+    ...(orgsActive !== '' && { is_active: orgsActive }),
+  });
+  let data;
+  try { data = await apiFetch(`/api/admin/users?${params}`); } catch { return; }
+  if (!data?.success) return;
+
+  const tbody = document.getElementById('orgsTbody');
+  tbody.innerHTML = data.data.map(o => `
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:.65rem">
+          <div style="width:36px;height:36px;border-radius:10px;background:${orgColor(o.name)};
+            display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;flex-shrink:0">
+            ${avatar(o.name)}
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:.84rem">${o.name}</div>
+            <div style="font-size:.72rem;color:var(--dj-muted)">${o.email}</div>
+          </div>
+        </div>
+      </td>
+      <td>${o.email}</td>
+      <td>${o.phone || '—'}</td>
+      <td>${o.city || o.country || '—'}</td>
+      <td><span style="background:rgba(0,0,255,.08);color:var(--dj-blue);border-radius:12px;padding:.15rem .55rem;font-size:.75rem;font-weight:600" id="orgEvCount-${o.id}">…</span></td>
+      <td>${o.is_active
+        ? '<span style="color:#16a34a;font-size:.82rem"><i class="bi bi-check-circle-fill"></i> Actif</span>'
+        : '<span style="color:#dc2626;font-size:.82rem"><i class="bi bi-x-circle-fill"></i> Suspendu</span>'}</td>
+      <td>${fmtDate(o.created_at)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-dj ghost sm" title="Voir la fiche" onclick="viewOrg('${o.id}')"><i class="bi bi-eye"></i></button>
+        <button class="btn-dj ghost sm" title="Modifier" onclick="openEditOrg(${JSON.stringify(o).replace(/"/g,'&quot;')})"><i class="bi bi-pencil"></i></button>
+        <button class="btn-dj danger sm" title="Suspendre" onclick="toggleOrgStatus('${o.id}','${o.name}',${o.is_active})"><i class="bi bi-${o.is_active ? 'slash-circle' : 'check-circle'}"></i></button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="bi bi-person-badge"></i>Aucun organisateur</div></td></tr>`;
+
+  renderPagination('orgsPagination', data.meta, (p) => { orgsPage = p; loadOrganizers(); });
+
+  // Charger le nb d'événements de chaque organisateur en arrière-plan
+  data.data.forEach(o => {
+    apiFetch(`/api/admin/events?organizer_id=${o.id}&limit=1`).then(d => {
+      const el = document.getElementById(`orgEvCount-${o.id}`);
+      if (el && d?.meta) el.textContent = `${fmtNum(d.meta.total)} événement${d.meta.total !== 1 ? 's' : ''}`;
+    }).catch(() => {});
+  });
+
+  // Cartes visuelles
+  renderOrgCards(data.data);
+}
+
+function renderOrgCards(orgs) {
+  const grid = document.getElementById('orgsCardsGrid');
+  if (!grid) return;
+  if (!orgs.length) { grid.innerHTML = ''; return; }
+  grid.innerHTML = orgs.map(o => `
+    <div class="dj-card" style="padding:1.25rem;cursor:pointer" onclick="viewOrg('${o.id}')">
+      <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:.85rem">
+        <div style="width:48px;height:48px;border-radius:12px;background:${orgColor(o.name)};
+          display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.1rem;flex-shrink:0">
+          ${avatar(o.name)}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.name}</div>
+          <div style="font-size:.72rem;color:var(--dj-muted)">${o.city || o.country || 'Tchad'}</div>
+        </div>
+        ${o.is_verified ? '<i class="bi bi-patch-check-fill" style="color:var(--dj-blue);font-size:1rem" title="Vérifié"></i>' : ''}
+      </div>
+      <div style="font-size:.78rem;color:var(--dj-muted);margin-bottom:.85rem;min-height:2rem">
+        ${o.bio ? o.bio.substring(0,80) + (o.bio.length > 80 ? '…' : '') : '<em>Aucune description</em>'}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:.72rem;color:var(--dj-muted)"><i class="bi bi-telephone me-1"></i>${o.phone || '—'}</div>
+        ${o.is_active
+          ? '<span style="background:rgba(22,163,74,.1);color:#16a34a;font-size:.7rem;border-radius:20px;padding:.15rem .6rem;font-weight:600"><i class="bi bi-circle-fill" style="font-size:.45rem;vertical-align:middle"></i> Actif</span>'
+          : '<span style="background:rgba(220,38,38,.1);color:#dc2626;font-size:.7rem;border-radius:20px;padding:.15rem .6rem;font-weight:600">Suspendu</span>'}
+      </div>
+    </div>`).join('');
+}
+
+document.getElementById('orgsSearch').addEventListener('input', function() { orgsSearch = this.value; orgsPage = 1; loadOrganizers(); });
+document.getElementById('orgsStatusFilter').addEventListener('change', function() { orgsActive = this.value; orgsPage = 1; loadOrganizers(); });
+
+/* ── Voir fiche organisateur ── */
+async function viewOrg(id) {
+  openModal('modalViewOrg');
+  document.getElementById('orgDetailContent').innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
+
+  let data;
+  try { data = await apiFetch(`/api/admin/users/${id}`); } catch { return; }
+  if (!data?.success) return;
+  const o = data.data;
+
+  let evData;
+  try { evData = await apiFetch(`/api/admin/events?page=1&limit=5`); } catch { evData = null; }
+
+  document.getElementById('orgDetailContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--dj-border)">
+      <div style="width:60px;height:60px;border-radius:14px;background:${orgColor(o.name)};
+        display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.4rem;flex-shrink:0">
+        ${avatar(o.name)}
+      </div>
+      <div>
+        <div style="font-size:1.05rem;font-weight:800">${o.name}
+          ${o.is_verified ? '<i class="bi bi-patch-check-fill" style="color:var(--dj-blue);margin-left:.3rem" title="Vérifié"></i>' : ''}
+        </div>
+        <div style="font-size:.8rem;color:var(--dj-muted)">${o.email}</div>
+        <div style="margin-top:.35rem">${o.is_active
+          ? '<span style="background:rgba(22,163,74,.1);color:#16a34a;font-size:.72rem;border-radius:20px;padding:.15rem .6rem;font-weight:600">✓ Actif</span>'
+          : '<span style="background:rgba(220,38,38,.1);color:#dc2626;font-size:.72rem;border-radius:20px;padding:.15rem .6rem;font-weight:600">Suspendu</span>'}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;font-size:.82rem;margin-bottom:1rem">
+      <div><span style="color:var(--dj-muted);font-size:.7rem">TÉLÉPHONE</span><br>${o.phone || '—'}</div>
+      <div><span style="color:var(--dj-muted);font-size:.7rem">VILLE</span><br>${o.city || '—'}</div>
+      <div><span style="color:var(--dj-muted);font-size:.7rem">PAYS</span><br>${o.country || 'Tchad'}</div>
+      <div><span style="color:var(--dj-muted);font-size:.7rem">MEMBRE DEPUIS</span><br>${fmtDate(o.created_at)}</div>
+      <div><span style="color:var(--dj-muted);font-size:.7rem">ÉVÉNEMENTS</span><br><strong style="color:var(--dj-blue)">${fmtNum(o.stats?.events || 0)}</strong></div>
+      <div><span style="color:var(--dj-muted);font-size:.7rem">DERNIÈRE CONNEXION</span><br>${fmtDateTime(o.last_login)}</div>
+    </div>
+    ${o.bio ? `<div style="background:var(--dj-surface2);border-radius:8px;padding:.75rem .9rem;font-size:.82rem;color:var(--dj-muted);margin-bottom:.5rem"><i class="bi bi-quote me-1"></i>${o.bio}</div>` : ''}`;
+
+  const footer = document.getElementById('orgDetailFooter');
+  footer.innerHTML = `
+    <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewOrg')">Fermer</button>
+    <button type="button" class="btn-dj warning" onclick="toggleOrgStatus('${o.id}','${o.name}',${o.is_active});closeModal('modalViewOrg')">
+      <i class="bi bi-${o.is_active ? 'slash-circle' : 'check-circle'}"></i> ${o.is_active ? 'Suspendre' : 'Réactiver'}
+    </button>
+    <button type="button" class="btn-dj primary" onclick="closeModal('modalViewOrg');openEditOrg(${JSON.stringify(o).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})">
+      <i class="bi bi-pencil"></i> Modifier
+    </button>`;
+}
+
+/* ── Ouvrir modale d'édition ── */
+function openEditOrg(o) {
+  document.getElementById('editOrgId').value      = o.id;
+  document.getElementById('editOrgName').value    = o.name    || '';
+  document.getElementById('editOrgEmail').value   = o.email   || '';
+  document.getElementById('editOrgPhone').value   = o.phone   || '';
+  document.getElementById('editOrgCity').value    = o.city    || '';
+  document.getElementById('editOrgCountry').value = o.country || 'Tchad';
+  document.getElementById('editOrgBio').value     = o.bio     || '';
+  document.getElementById('editOrgActive').value  = o.is_active ? '1' : '0';
+  document.getElementById('editOrgVerified').value= o.is_verified ? '1' : '0';
+  document.getElementById('btnSuspendOrg').onclick = () => toggleOrgStatus(o.id, o.name, o.is_active, true);
+  document.getElementById('btnSuspendOrg').innerHTML = o.is_active
+    ? '<i class="bi bi-slash-circle"></i> Suspendre'
+    : '<i class="bi bi-check-circle"></i> Réactiver';
+  openModal('modalEditOrg');
+}
+
+/* ── Soumettre modification ── */
+document.getElementById('formEditOrg').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector('[type=submit]');
+  setBtnLoading(btn, true);
+  const id = document.getElementById('editOrgId').value;
+  const body = {
+    name:        document.getElementById('editOrgName').value,
+    email:       document.getElementById('editOrgEmail').value,
+    phone:       document.getElementById('editOrgPhone').value,
+    city:        document.getElementById('editOrgCity').value,
+    country:     document.getElementById('editOrgCountry').value,
+    bio:         document.getElementById('editOrgBio').value,
+    is_active:   parseInt(document.getElementById('editOrgActive').value),
+    is_verified: parseInt(document.getElementById('editOrgVerified').value),
+  };
+  const data = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: JSON.stringify(body) });
+  setBtnLoading(btn, false);
+  if (data?.success) { toast('Organisateur mis à jour ✓', 'success'); closeModal('modalEditOrg'); loadOrganizers(); }
+  else toast(data?.message || 'Erreur', 'error');
+});
+
+/* ── Créer un organisateur ── */
+document.getElementById('formCreateOrg').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = e.submitter || e.target.querySelector('[type=submit]');
+  setBtnLoading(btn, true);
+  const body = {
+    name:     document.getElementById('newOrgName').value,
+    email:    document.getElementById('newOrgEmail').value,
+    phone:    document.getElementById('newOrgPhone').value,
+    city:     document.getElementById('newOrgCity').value,
+    country:  document.getElementById('newOrgCountry').value || 'Tchad',
+    bio:      document.getElementById('newOrgBio').value,
+    password: document.getElementById('newOrgPassword').value,
+    role:     'organizer',
+  };
+  const data = await apiFetch('/api/admin/users', { method:'POST', body: JSON.stringify(body) });
+  setBtnLoading(btn, false);
+  if (data?.success) {
+    toast('Organisateur créé ✓', 'success');
+    closeModal('modalCreateOrg');
+    e.target.reset();
+    loadOrganizers();
+  } else toast(data?.message || 'Erreur', 'error');
+});
+
+/* ── Suspendre / Réactiver ── */
+async function toggleOrgStatus(id, name, isActive, fromModal = false) {
+  const action = isActive ? 'suspendre' : 'réactiver';
+  if (!confirm(`Voulez-vous ${action} l'organisateur "${name}" ?`)) return;
+  const data = await apiFetch(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ is_active: isActive ? 0 : 1 }),
+  });
+  if (data?.success) {
+    toast(`Organisateur ${isActive ? 'suspendu' : 'réactivé'} ✓`, 'success');
+    if (fromModal) closeModal('modalEditOrg');
+    loadOrganizers();
+  } else toast(data?.message || 'Erreur', 'error');
 }
 
 /* ══════════════════════ SCAN LOGS ══════════════════════ */

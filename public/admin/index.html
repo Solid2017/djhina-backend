@@ -41,6 +41,9 @@
 
     <nav class="nav-section admin-only">
       <div class="nav-label">Administration</div>
+      <a class="nav-item admin-only" data-section="organizers">
+        <i class="bi bi-person-badge"></i> Organisateurs
+      </a>
       <a class="nav-item admin-only" data-section="users">
         <i class="bi bi-people"></i> Utilisateurs
       </a>
@@ -234,6 +237,42 @@
         </div>
       </section>
 
+      <!-- ══ ORGANISATEURS ══ -->
+      <section class="section" id="sec-organizers">
+        <div class="dj-card">
+          <div class="dj-card-header">
+            <i class="bi bi-person-badge" style="color:#7c3aed"></i>
+            <h5>Organisateurs</h5>
+            <div class="ms-auto">
+              <div class="search-bar" style="display:inline-flex;align-items:center">
+                <i class="bi bi-search"></i>
+                <input id="orgsSearch" type="text" class="dj-input" placeholder="Nom, email…" style="width:180px">
+              </div>
+              <select id="orgsStatusFilter" class="dj-select" style="margin-left:.5rem">
+                <option value="">Tous</option>
+                <option value="1">Actifs</option>
+                <option value="0">Inactifs</option>
+              </select>
+              <button class="btn-dj primary" onclick="openModal('modalCreateOrg')" style="margin-left:.5rem">
+                <i class="bi bi-plus-lg"></i> Nouvel organisateur
+              </button>
+            </div>
+          </div>
+          <div class="dj-card-body" style="padding:0;overflow:auto">
+            <table class="dj-table">
+              <thead><tr><th>Organisateur</th><th>Contact</th><th>Téléphone</th><th>Ville</th><th>Événements</th><th>Statut</th><th>Membre depuis</th><th>Actions</th></tr></thead>
+              <tbody id="orgsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dj-card-body" style="padding:.75rem 1.25rem">
+            <div class="pagination" id="orgsPagination"></div>
+          </div>
+        </div>
+
+        <!-- Grille de cartes organisateurs -->
+        <div class="grid2" id="orgsCardsGrid" style="margin-top:1.25rem"></div>
+      </section>
+
       <!-- ══ SCAN LOGS ══ -->
       <section class="section" id="sec-scanlogs">
         <div class="dj-card">
@@ -391,6 +430,97 @@
         <button type="submit" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL CREATE ORGANIZER ══════ -->
+<div class="dj-modal-overlay" id="modalCreateOrg">
+  <div class="dj-modal" style="max-width:520px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-person-badge me-2"></i>Nouvel organisateur</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalCreateOrg')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formCreateOrg">
+      <div class="dj-modal-body">
+        <div class="form-grp"><label>Nom / Entreprise *</label><input id="newOrgName" type="text" class="dj-input" required placeholder="Ex: Emeraude Events"></div>
+        <div class="grid2">
+          <div class="form-grp"><label>Email *</label><input id="newOrgEmail" type="email" class="dj-input" required placeholder="contact@emeraude.td"></div>
+          <div class="form-grp"><label>Téléphone</label><input id="newOrgPhone" type="text" class="dj-input" placeholder="+235 66 00 00 00"></div>
+        </div>
+        <div class="grid2">
+          <div class="form-grp"><label>Ville</label><input id="newOrgCity" type="text" class="dj-input" placeholder="N'Djaména"></div>
+          <div class="form-grp"><label>Pays</label><input id="newOrgCountry" type="text" class="dj-input" value="Tchad"></div>
+        </div>
+        <div class="form-grp"><label>Bio / Description</label><textarea id="newOrgBio" class="dj-input" rows="2" style="resize:vertical;width:100%" placeholder="Présentation courte de l'organisateur…"></textarea></div>
+        <div class="form-grp"><label>Mot de passe *</label><input id="newOrgPassword" type="password" class="dj-input" required minlength="8" placeholder="Min. 8 caractères"></div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateOrg')">Annuler</button>
+        <button type="submit" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL EDIT ORGANIZER ══════ -->
+<div class="dj-modal-overlay" id="modalEditOrg">
+  <div class="dj-modal" style="max-width:520px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-pencil me-2"></i>Modifier l'organisateur</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalEditOrg')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formEditOrg">
+      <input type="hidden" id="editOrgId">
+      <div class="dj-modal-body">
+        <div class="form-grp"><label>Nom / Entreprise *</label><input id="editOrgName" type="text" class="dj-input" required></div>
+        <div class="grid2">
+          <div class="form-grp"><label>Email *</label><input id="editOrgEmail" type="email" class="dj-input" required></div>
+          <div class="form-grp"><label>Téléphone</label><input id="editOrgPhone" type="text" class="dj-input"></div>
+        </div>
+        <div class="grid2">
+          <div class="form-grp"><label>Ville</label><input id="editOrgCity" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Pays</label><input id="editOrgCountry" type="text" class="dj-input"></div>
+        </div>
+        <div class="form-grp"><label>Bio / Description</label><textarea id="editOrgBio" class="dj-input" rows="2" style="resize:vertical;width:100%"></textarea></div>
+        <div class="grid2">
+          <div class="form-grp">
+            <label>Statut</label>
+            <select id="editOrgActive" class="dj-select">
+              <option value="1">Actif</option>
+              <option value="0">Suspendu</option>
+            </select>
+          </div>
+          <div class="form-grp">
+            <label>Vérifié</label>
+            <select id="editOrgVerified" class="dj-select">
+              <option value="1">Oui ✓</option>
+              <option value="0">Non</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj danger sm" id="btnSuspendOrg" style="margin-right:auto"><i class="bi bi-slash-circle"></i> Suspendre</button>
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalEditOrg')">Annuler</button>
+        <button type="submit" class="btn-dj primary"><i class="bi bi-check-lg"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW ORGANIZER ══════ -->
+<div class="dj-modal-overlay" id="modalViewOrg">
+  <div class="dj-modal" style="max-width:540px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-person-badge me-2"></i>Fiche organisateur</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewOrg')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="orgDetailContent">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer" id="orgDetailFooter">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewOrg')">Fermer</button>
+    </div>
   </div>
 </div>
 
