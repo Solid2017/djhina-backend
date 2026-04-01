@@ -87,6 +87,19 @@ app.use('/api/notifications',              require('./src/routes/notifications')
 app.use('/api/admin',                      require('./src/routes/admin'));
 app.use('/api/organizer',                  require('./src/routes/organizer'));
 
+// ── Favicon ──────────────────────────────────────────────────
+app.get('/favicon.ico', (req, res) => {
+  // SVG favicon bleu Djhina encodé en base64
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <rect width="32" height="32" rx="8" fill="#0000FF"/>
+    <text x="16" y="23" text-anchor="middle" font-family="Arial,sans-serif"
+      font-weight="bold" font-size="18" fill="#fff">D</text>
+  </svg>`;
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(svg);
+});
+
 // ── Page d'accueil ───────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({
