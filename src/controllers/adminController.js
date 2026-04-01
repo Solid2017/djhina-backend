@@ -137,6 +137,27 @@ exports.createUser = async (req, res) => {
   return res.status(201).json({ success: true, message: 'Utilisateur créé.', data: { id } });
 };
 
+// ── GET /api/admin/events/:id ────────────────────────────────
+exports.getEvent = async (req, res) => {
+  const [[event]] = await pool.execute(
+    `SELECT e.*,
+       u.name AS organizer_name, u.email AS organizer_email,
+       c.label AS category_label
+     FROM events e
+     JOIN users u ON e.organizer_id = u.id
+     LEFT JOIN categories c ON e.category_id = c.id
+     WHERE e.id = ?`,
+    [req.params.id]
+  );
+  if (!event) return res.status(404).json({ success: false, message: 'Événement introuvable.' });
+
+  const [ticketTypes] = await pool.execute(
+    'SELECT id, name, price, currency, available, sold, is_active FROM ticket_types WHERE event_id = ? ORDER BY price ASC',
+    [req.params.id]
+  );
+  return res.json({ success: true, data: { ...event, ticket_types: ticketTypes } });
+};
+
 // ── GET /api/admin/events ────────────────────────────────────
 exports.listEvents = async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query;

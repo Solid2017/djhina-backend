@@ -148,7 +148,7 @@
       <section class="section" id="sec-events">
         <div class="dj-card">
           <div class="dj-card-header">
-            <i class="bi bi-calendar-event" style="color:#fbbf24"></i>
+            <i class="bi bi-calendar-event" style="color:#d97706"></i>
             <h5>Événements</h5>
             <div class="ms-auto">
               <select id="eventsStatusFilter" class="dj-select">
@@ -157,12 +157,15 @@
                 <option value="draft">Brouillon</option>
                 <option value="cancelled">Annulé</option>
               </select>
+              <button class="btn-dj primary" onclick="openCreateEventModal()" style="margin-left:.5rem">
+                <i class="bi bi-plus-lg"></i> Nouvel événement
+              </button>
             </div>
           </div>
           <div class="dj-card-body" style="padding:0;overflow:auto">
             <table class="dj-table">
-              <thead><tr><th>Titre</th><th>Date</th><th>Organisateur</th><th>Statut</th><th>Capacité</th><th>En avant</th><th>Changer statut</th></tr></thead>
-              <tbody id="eventsTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
+              <thead><tr><th>Titre</th><th>Date</th><th>Organisateur</th><th>Statut</th><th>Capacité</th><th>Vedette</th><th>Changer statut</th><th>Actions</th></tr></thead>
+              <tbody id="eventsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
             </table>
           </div>
           <div class="dj-card-body" style="padding:.75rem 1.25rem">
@@ -175,14 +178,29 @@
       <section class="section" id="sec-tickets">
         <div class="dj-card">
           <div class="dj-card-header">
-            <i class="bi bi-ticket-perforated" style="color:#22d3ee"></i>
+            <i class="bi bi-ticket-perforated" style="color:#0891b2"></i>
             <h5>Tickets</h5>
+            <div class="ms-auto">
+              <div class="search-bar" style="display:inline-flex;align-items:center">
+                <i class="bi bi-search"></i>
+                <input id="ticketsSearch" type="text" class="dj-input" placeholder="N° ticket, titulaire..." style="width:200px">
+              </div>
+              <select id="ticketsStatusFilter" class="dj-select" style="margin-left:.5rem">
+                <option value="">Tous les statuts</option>
+                <option value="active">Actif</option>
+                <option value="used">Utilisé</option>
+                <option value="cancelled">Annulé</option>
+              </select>
+            </div>
           </div>
           <div class="dj-card-body" style="padding:0;overflow:auto">
             <table class="dj-table">
-              <thead><tr><th>N° Ticket</th><th>Événement</th><th>Titulaire</th><th>Type</th><th>Prix</th><th>Statut</th><th>Date</th></tr></thead>
-              <tbody id="ticketsTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
+              <thead><tr><th>N° Ticket</th><th>Événement</th><th>Titulaire</th><th>Type</th><th>Prix</th><th>Statut</th><th>Date achat</th><th>Actions</th></tr></thead>
+              <tbody id="ticketsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
             </table>
+          </div>
+          <div class="dj-card-body" style="padding:.75rem 1.25rem">
+            <div class="pagination" id="ticketsPagination"></div>
           </div>
         </div>
       </section>
@@ -191,13 +209,22 @@
       <section class="section" id="sec-payments">
         <div class="dj-card">
           <div class="dj-card-header">
-            <i class="bi bi-cash-stack" style="color:#34d399"></i>
+            <i class="bi bi-cash-stack" style="color:#16a34a"></i>
             <h5>Paiements</h5>
+            <div class="ms-auto">
+              <select id="paymentsStatusFilter" class="dj-select">
+                <option value="">Tous les statuts</option>
+                <option value="completed">Complété</option>
+                <option value="pending">En attente</option>
+                <option value="failed">Échoué</option>
+                <option value="refunded">Remboursé</option>
+              </select>
+            </div>
           </div>
           <div class="dj-card-body" style="padding:0;overflow:auto">
             <table class="dj-table">
-              <thead><tr><th>Utilisateur</th><th>Événement</th><th>Montant</th><th>Opérateur</th><th>Téléphone</th><th>Statut</th><th>Date</th></tr></thead>
-              <tbody id="paymentsTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
+              <thead><tr><th>Utilisateur</th><th>Événement</th><th>Montant</th><th>Opérateur</th><th>Téléphone</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody id="paymentsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
             </table>
           </div>
           <div class="dj-card-body" style="padding:.75rem 1.25rem">
@@ -361,6 +388,151 @@
       <div class="dj-modal-footer">
         <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateCat')">Annuler</button>
         <button type="submit" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL EDIT EVENT ══════ -->
+<div class="dj-modal-overlay" id="modalEditEvent">
+  <div class="dj-modal" style="max-width:600px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-pencil-square me-2"></i>Modifier l'événement</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalEditEvent')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formEditEvent">
+      <input type="hidden" id="editEvId">
+      <div class="dj-modal-body">
+        <div class="form-grp"><label>Titre *</label><input id="editEvTitle" type="text" class="dj-input" required></div>
+        <div class="form-grp"><label>Sous-titre</label><input id="editEvSubtitle" type="text" class="dj-input" placeholder="Optionnel"></div>
+        <div class="grid2">
+          <div class="form-grp"><label>Date de début *</label><input id="editEvDate" type="datetime-local" class="dj-input" required></div>
+          <div class="form-grp"><label>Date de fin</label><input id="editEvDateEnd" type="datetime-local" class="dj-input"></div>
+        </div>
+        <div class="grid2">
+          <div class="form-grp"><label>Lieu *</label><input id="editEvLocation" type="text" class="dj-input" required></div>
+          <div class="form-grp"><label>Ville</label><input id="editEvCity" type="text" class="dj-input" placeholder="N'Djaména"></div>
+        </div>
+        <div class="grid2">
+          <div class="form-grp">
+            <label>Catégorie</label>
+            <select id="editEvCategory" class="dj-select">
+              <option value="">Aucune catégorie</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Capacité</label><input id="editEvCapacity" type="number" class="dj-input" min="1"></div>
+        </div>
+        <div class="form-grp"><label>Description</label><textarea id="editEvDesc" class="dj-input" rows="3" style="resize:vertical;width:100%"></textarea></div>
+        <div class="grid2">
+          <div class="form-grp">
+            <label>Statut</label>
+            <select id="editEvStatus" class="dj-select">
+              <option value="draft">Brouillon</option>
+              <option value="published">Publié</option>
+              <option value="cancelled">Annulé</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Nouvelle couverture</label><input id="editEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem"></div>
+        </div>
+        <!-- Types de billets -->
+        <div style="margin-top:.5rem;border-top:1px solid var(--dj-border);padding-top:.85rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem">
+            <span style="font-size:.8rem;font-weight:700;color:var(--dj-text)"><i class="bi bi-tags me-1"></i>Types de billets</span>
+            <button type="button" class="btn-dj ghost sm" onclick="addTicketTypeRow('editTTBody')"><i class="bi bi-plus-lg"></i> Ajouter</button>
+          </div>
+          <table class="dj-table" style="font-size:.78rem">
+            <thead><tr><th>Nom</th><th>Prix (XAF)</th><th>Disponibles</th><th></th></tr></thead>
+            <tbody id="editTTBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj danger" id="btnDeleteEventFromEdit" style="margin-right:auto"><i class="bi bi-trash"></i> Supprimer</button>
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalEditEvent')">Annuler</button>
+        <button type="submit" class="btn-dj primary"><i class="bi bi-check-lg"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW TICKET ══════ -->
+<div class="dj-modal-overlay" id="modalViewTicket">
+  <div class="dj-modal" style="max-width:520px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-ticket-perforated me-2"></i>Détail du billet</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewTicket')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="ticketDetailContent" style="padding:1.25rem">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer" id="ticketModalFooter">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewTicket')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW PAYMENT ══════ -->
+<div class="dj-modal-overlay" id="modalViewPayment">
+  <div class="dj-modal" style="max-width:540px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-credit-card me-2"></i>Détail du paiement</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewPayment')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="paymentDetailContent">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer">
+      <input type="hidden" id="currentPaymentId">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewPayment')">Fermer</button>
+      <button type="button" class="btn-dj warning" id="btnRefundPayment" onclick="updatePaymentStatus('refunded')" style="display:none">
+        <i class="bi bi-arrow-counterclockwise"></i> Rembourser
+      </button>
+      <button type="button" class="btn-dj success" id="btnCompletePayment" onclick="updatePaymentStatus('completed')" style="display:none">
+        <i class="bi bi-check-circle"></i> Marquer complété
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL CREATE EVENT ══════ -->
+<div class="dj-modal-overlay" id="modalCreateEvent">
+  <div class="dj-modal" style="max-width:560px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-calendar-plus me-2"></i>Nouvel événement</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalCreateEvent')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formCreateEvent">
+      <div class="dj-modal-body">
+        <div class="form-grp"><label>Titre *</label><input id="newEvTitle" type="text" class="dj-input" required placeholder="Nom de l'événement"></div>
+        <div class="grid2">
+          <div class="form-grp"><label>Date de début *</label><input id="newEvDate" type="datetime-local" class="dj-input" required></div>
+          <div class="form-grp"><label>Date de fin</label><input id="newEvDateEnd" type="datetime-local" class="dj-input"></div>
+        </div>
+        <div class="form-grp"><label>Lieu *</label><input id="newEvLocation" type="text" class="dj-input" required placeholder="N'Djamena, Tchad"></div>
+        <div class="grid2">
+          <div class="form-grp">
+            <label>Catégorie</label>
+            <select id="newEvCategory" class="dj-select">
+              <option value="">Aucune catégorie</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Capacité</label><input id="newEvCapacity" type="number" class="dj-input" placeholder="500" min="1"></div>
+        </div>
+        <div class="form-grp"><label>Description</label><textarea id="newEvDesc" class="dj-input" rows="3" style="resize:vertical;width:100%" placeholder="Description de l'événement..."></textarea></div>
+        <div class="grid2">
+          <div class="form-grp">
+            <label>Statut initial</label>
+            <select id="newEvStatus" class="dj-select">
+              <option value="draft">Brouillon</option>
+              <option value="published">Publié</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Image de couverture</label><input id="newEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem"></div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateEvent')">Annuler</button>
+        <button type="submit" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer l'événement</button>
       </div>
     </form>
   </div>

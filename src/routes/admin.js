@@ -19,6 +19,7 @@ router.delete('/users/:id',    ctrl.deleteUser);
 
 // ── Événements ────────────────────────────────────────────────
 router.get('/events',                  ctrl.listEvents);
+router.get('/events/:id',              ctrl.getEvent);
 router.put('/events/:id/status',       ctrl.setEventStatus);
 router.put('/events/:id/feature',      ctrl.featureEvent);
 
