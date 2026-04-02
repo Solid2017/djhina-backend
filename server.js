@@ -26,11 +26,19 @@ app.use(helmet({
   },
 }));
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:8081', 'https://djhina.igotech.tech'];
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:8081', 'https://djhina.igotech.tech'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: (origin, callback) => {
+    // Autoriser les apps mobiles React Native (pas d'Origin) et le dev local
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS bloqué pour l'origine : ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));

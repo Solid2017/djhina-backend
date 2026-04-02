@@ -54,7 +54,10 @@ exports.list = async (req, res) => {
     LIMIT ? OFFSET ?`;
 
   const [[{ total }]] = await pool.execute(countSql, [...params]);
-  const [events]      = await pool.execute(dataSql, [...params, parseInt(limit), offset]);
+  const [events]      = await pool.execute(
+    dataSql.replace('LIMIT ? OFFSET ?', `LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`),
+    [...params]
+  );
 
   // Si utilisateur connecté, ajouter ses interactions
   if (req.user) {
