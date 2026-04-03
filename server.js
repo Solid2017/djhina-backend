@@ -75,11 +75,10 @@ app.get('/tickets/:number/view', viewTicket);
 // ── Interface admin ───────────────────────────────────────────
 // Cache désactivé pour les fichiers JS/CSS admin (évite les versions obsolètes en cache)
 app.use('/admin', (req, res, next) => {
-  if (/\.(js|css)$/.test(req.path)) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
+  // Désactiver le cache pour tous les fichiers statiques admin
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   next();
 }, express.static(path.join(__dirname, 'public/admin'), {
   index: 'login.html',
@@ -94,6 +93,7 @@ app.use('/api/tickets',                    require('./src/routes/tickets'));
 app.use('/api/notifications',              require('./src/routes/notifications'));
 app.use('/api/admin',                      require('./src/routes/admin'));
 app.use('/api/organizer',                  require('./src/routes/organizer'));
+app.use('/api',                            require('./src/routes/agenda'));
 
 // ── Favicon ──────────────────────────────────────────────────
 app.get('/favicon.ico', (req, res) => {
@@ -173,7 +173,10 @@ app.use((err, req, res, next) => {
   const status = err.statusCode || err.status || 500;
   res.status(status).json({
     success: false,
-    message: status === 500 ? 'Erreur serveur interne.' : err.message,
+    message: status === 500 && process.env.NODE_ENV === 'production'
+      ? 'Erreur serveur interne.'
+      : err.message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack?.split('\n').slice(0,4).join(' | ') }),
   });
 });
 

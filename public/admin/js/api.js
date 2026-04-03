@@ -7,7 +7,11 @@ function getRefresh(){ return localStorage.getItem('dj_refresh'); }
 
 /* ── Fetch central avec retry token + gestion d'erreurs réseau ── */
 async function apiFetch(path, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  // Pour FormData (uploads fichiers), NE PAS définir Content-Type — le browser le fait avec boundary
+  const isFormData = options.body instanceof FormData;
+  const headers = isFormData
+    ? { ...(options.headers || {}) }
+    : { 'Content-Type': 'application/json', ...(options.headers || {}) };
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 

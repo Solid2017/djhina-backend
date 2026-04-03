@@ -25,6 +25,21 @@ function setBtnLoading(btn, loading, label = '') {
   else btn.innerHTML = label || btn._orig || btn.innerHTML;
 }
 
+/* ── Prévisualisation instantanée d'image (FileReader, 0 réseau) ── */
+function previewImage(input, previewId) {
+  const wrap = document.getElementById(previewId);
+  if (!wrap) return;
+  const file = input.files[0];
+  if (!file) { wrap.style.display = 'none'; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = wrap.querySelector('img');
+    img.src = e.target.result;
+    wrap.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
 /* ── Load categories into a <select> ── */
 async function fillCategorySelect(selId, selectedId = '') {
   const sel = document.getElementById(selId);
@@ -61,7 +76,8 @@ function navigate(section) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('sec-' + section).classList.add('active');
   document.querySelector(`[data-section="${section}"]`).classList.add('active');
-  document.getElementById('topbarTitle').textContent = { dashboard:'Tableau de bord', organizers:'Organisateurs', users:'Utilisateurs', events:'Événements', tickets:'Tickets', payments:'Paiements', scanlogs:'Logs de scan', categories:'Catégories' }[section] || section;
+  document.getElementById('topbarTitle').textContent = { dashboard:'Tableau de bord', organizers:'Organisateurs', users:'Utilisateurs', events:'Événements', tickets:'Tickets', payments:'Paiements', scanlogs:'Logs de scan', categories:'Catégories', speakers:'Speakers' }[section] || section;
+  localStorage.setItem('djhina_admin_section', section);
   loadSection(section);
 }
 
@@ -80,6 +96,7 @@ function loadSection(section) {
     scanlogs:   loadScanLogs,
     categories: loadCategories,
     organizers: loadOrganizers,
+    speakers:   loadSpeakers,
   };
   if (loaders[section]) {
     Promise.resolve(loaders[section]()).catch(err => {
@@ -204,43 +221,84 @@ document.getElementById('formCreateUser').addEventListener('submit', async (e) =
 /* ══════════════════════ EVENTS ══════════════════════ */
 let eventsPage = 1, eventsStatus = '';
 
-async function loadEvents() {
-  const params = new URLSearchParams({ page: eventsPage, limit: 15, ...(eventsStatus && { status: eventsStatus }) });
-  let data;
-  try { data = await apiFetch(`/api/admin/events?${params}`); } catch { return; }
-  if (!data?.success) return;
+const EVENT_STATUS_COLOR = { published:'#16a34a', draft:'#d97706', cancelled:'#dc2626', completed:'#6366f1' };
+const EVENT_STATUS_LABEL = { published:'Publié', draft:'Brouillon', cancelled:'Annulé', completed:'Terminé' };
+const EVENT_TYPE_ICON    = { concert:'bi-music-note-beamed', conference:'bi-mic', festival:'bi-stars', sport:'bi-trophy', expo:'bi-easel' };
 
-  const tbody = document.getElementById('eventsTbody');
-  tbody.innerHTML = data.data.map(e => `
-    <tr>
-      <td>
-        <div style="font-weight:600;font-size:.83rem">${e.title}</div>
-        <div style="color:var(--dj-muted);font-size:.72rem">${e.category || 'Non catégorisé'}</div>
-      </td>
-      <td>${fmtDate(e.date)}</td>
-      <td>
-        <div style="font-size:.83rem">${e.organizer_name}</div>
-        <div style="color:var(--dj-muted);font-size:.72rem">${e.organizer_email || ''}</div>
-      </td>
-      <td>${badgeStatus(e.status)}</td>
-      <td>${fmtNum(e.registered)} / ${fmtNum(e.capacity)}</td>
-      <td style="text-align:center">
-        <button class="star-btn" title="${e.is_featured ? 'Retirer de la une' : 'Mettre en avant'}" onclick="featureEvent('${e.id}')">
+async function loadEvents() {
+  const search = document.getElementById('eventsSearch')?.value?.trim() || '';
+  const params = new URLSearchParams({
+    page: eventsPage, limit: 12,
+    ...(eventsStatus && { status: eventsStatus }),
+    ...(search && { search }),
+  });
+  const grid = document.getElementById('eventsGrid');
+  grid.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>';
+
+  let data;
+  try { data = await apiFetch(`/api/admin/events?${params}`); } catch { data = null; }
+  if (!data?.success) {
+    grid.innerHTML = `<div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div>`;
+    return;
+  }
+
+  if (!data.data.length) {
+    grid.innerHTML = '<div class="empty-state"><i class="bi bi-calendar-x"></i>Aucun événement trouvé</div>';
+    renderPagination('eventsPagination', data.meta, (p) => { eventsPage = p; loadEvents(); });
+    return;
+  }
+
+  grid.innerHTML = data.data.map(e => {
+    const pct  = e.capacity ? Math.min(100, Math.round((e.registered / e.capacity) * 100)) : 0;
+    const sc   = EVENT_STATUS_COLOR[e.status] || '#6b7280';
+    const sl   = EVENT_STATUS_LABEL[e.status] || e.status;
+    const safeTitle = (e.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const coverSrc  = e.cover_image ? (e.cover_image.startsWith('http') ? e.cover_image : `${API_BASE}${e.cover_image}`) : null;
+    const coverHtml = coverSrc
+      ? `<img src="${coverSrc}" alt="${e.title}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=ev-card-cover-placeholder><i class=bi-bi-calendar-event style=font-size:3rem;color:var(--dj-border)></i></div>'">`
+      : `<div class="ev-card-cover-placeholder"><i class="bi bi-calendar-event"></i></div>`;
+
+    return `
+    <div class="ev-card">
+      <div class="ev-card-cover">
+        ${coverHtml}
+        <div class="ev-card-badges">
+          <span class="ev-badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}44">${sl}</span>
+          ${e.is_featured ? '<span class="ev-badge" style="background:rgba(234,179,8,.2);color:#ca8a04;border:1px solid rgba(234,179,8,.3)">⭐ Vedette</span>' : ''}
+        </div>
+        <button class="ev-star-btn" title="${e.is_featured ? 'Retirer' : 'Mettre en avant'}" onclick="featureEvent('${e.id}')">
           ${e.is_featured ? '⭐' : '☆'}
         </button>
-      </td>
-      <td>
-        <select class="dj-select" style="font-size:.72rem;padding:.25rem .5rem" onchange="setEventStatus('${e.id}',this.value)">
-          <option value="published" ${e.status==='published'?'selected':''}>Publié</option>
-          <option value="draft"     ${e.status==='draft'?'selected':''}>Brouillon</option>
-          <option value="cancelled" ${e.status==='cancelled'?'selected':''}>Annulé</option>
+      </div>
+      <div class="ev-card-body">
+        <div class="ev-card-title" title="${e.title}">${e.title}</div>
+        <div class="ev-card-meta">
+          <span><i class="bi bi-calendar3"></i>${fmtDate(e.date)}</span>
+          ${e.location ? `<span><i class="bi bi-geo-alt"></i>${e.location}${e.city ? ', '+e.city : ''}</span>` : ''}
+          <span><i class="bi bi-person-badge"></i>${e.organizer_name || '—'}</span>
+          ${e.category ? `<span><i class="bi bi-tag"></i>${e.category}</span>` : ''}
+        </div>
+        ${e.capacity ? `
+        <div class="ev-card-capacity">
+          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--dj-muted);margin-bottom:3px">
+            <span>${fmtNum(e.registered)} inscrits</span>
+            <span>${fmtNum(e.capacity)} places</span>
+          </div>
+          <div class="capacity-bar"><div class="capacity-bar-fill" style="width:${pct}%;background:${pct>85?'#dc2626':pct>60?'#d97706':'var(--dj-blue)'}"></div></div>
+        </div>` : ''}
+      </div>
+      <div class="ev-card-footer">
+        <select class="dj-select" style="font-size:.72rem;padding:.2rem .45rem;flex:1;min-width:0" onchange="setEventStatus('${e.id}',this.value)">
+          <option value="published"  ${e.status==='published' ?'selected':''}>Publié</option>
+          <option value="draft"      ${e.status==='draft'     ?'selected':''}>Brouillon</option>
+          <option value="cancelled"  ${e.status==='cancelled' ?'selected':''}>Annulé</option>
         </select>
-      </td>
-      <td>
+        <button class="btn-dj info sm" title="Agenda" onclick="openAgendaModal('${e.id}','${safeTitle}')"><i class="bi bi-list-ul"></i></button>
         <button class="btn-dj ghost sm" title="Modifier" onclick="openEditEvent('${e.id}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn-dj danger sm" title="Supprimer" onclick="deleteEvent('${e.id}','${(e.title||'').replace(/'/g,`\\'`)}')"><i class="bi bi-trash"></i></button>
-      </td>
-    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="bi bi-calendar-x"></i>Aucun événement</div></td></tr>`;
+        <button class="btn-dj danger sm" title="Supprimer" onclick="deleteEvent('${e.id}','${safeTitle}')"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
 
   renderPagination('eventsPagination', data.meta, (p) => { eventsPage = p; loadEvents(); });
 }
@@ -276,7 +334,7 @@ document.getElementById('formCreateEvent').addEventListener('submit', async (e) 
 
   try {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/api/events`, {
+    const res = await fetch(`${API_BASE}/api/admin/events`, {
       method: 'POST',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: fd,
@@ -286,6 +344,8 @@ document.getElementById('formCreateEvent').addEventListener('submit', async (e) 
       toast('Événement créé avec succès ✓', 'success');
       closeModal('modalCreateEvent');
       e.target.reset();
+      const prev = document.getElementById('newEvPreview');
+      if (prev) prev.style.display = 'none';
       loadEvents();
     } else {
       toast(data?.message || 'Erreur lors de la création', 'error');
@@ -317,6 +377,9 @@ function openEditEvent(id) {
   document.getElementById('editEvCapacity').value = '';
   document.getElementById('editEvDesc').value     = '';
   document.getElementById('editTTBody').innerHTML = '';
+  document.getElementById('editEvCover').value    = '';
+  const prev = document.getElementById('editEvPreview');
+  if (prev) prev.style.display = 'none';
 
   // Charger les données en arrière-plan
   _loadEditEventData(id);
@@ -342,6 +405,19 @@ async function _loadEditEventData(id) {
     document.getElementById('editEvCapacity').value = e.capacity || '';
     document.getElementById('editEvDesc').value     = e.description || '';
     document.getElementById('editEvStatus').value   = e.status || 'draft';
+
+    // Afficher la couverture actuelle si elle existe
+    const prevWrap = document.getElementById('editEvPreview');
+    if (prevWrap) {
+      if (e.cover_image) {
+        prevWrap.querySelector('img').src = e.cover_image;
+        prevWrap.style.display = 'block';
+        prevWrap.querySelector('img').style.opacity = '0.6';
+        prevWrap.title = 'Image actuelle — sélectionne un nouveau fichier pour la remplacer';
+      } else {
+        prevWrap.style.display = 'none';
+      }
+    }
 
     // Catégories
     const sel = document.getElementById('editEvCategory');
@@ -394,13 +470,11 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
 
   try {
     const token = getToken();
-    const [putRes] = await Promise.all([
-      fetch(`${API_BASE}/api/events/${id}`, {
-        method: 'PUT',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        body: fd,
-      }),
-    ]);
+    const putRes = await fetch(`${API_BASE}/api/admin/events/${id}`, {
+      method: 'PUT',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: fd,
+    });
     const data = await putRes.json();
     if (data?.success) {
       // Mettre à jour le statut séparément
@@ -408,8 +482,12 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
       await apiFetch(`/api/admin/events/${id}/status`, {
         method: 'PUT', body: JSON.stringify({ status: newStatus }),
       });
+      setBtnLoading(btn, false);
       toast('Événement mis à jour ✓', 'success');
       closeModal('modalEditEvent');
+      // Réinitialiser la prévisualisation
+      const prev = document.getElementById('editEvPreview');
+      if (prev) prev.style.display = 'none';
       loadEvents();
     } else {
       toast(data?.message || 'Erreur', 'error');
@@ -423,9 +501,9 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
 
 async function deleteEvent(id, title, fromModal = false) {
   if (!confirm(`Supprimer / annuler l'événement "${title}" ?\nLes tickets actifs seront maintenus.`)) return;
-  const data = await apiFetch(`/api/events/${id}`, { method:'DELETE' });
+  const data = await apiFetch(`/api/admin/events/${id}`, { method:'DELETE' });
   if (data?.success) {
-    toast('Événement supprimé', 'success');
+    toast('Événement annulé', 'success');
     if (fromModal) closeModal('modalEditEvent');
     loadEvents();
   } else toast(data?.message || 'Erreur', 'error');
@@ -458,9 +536,15 @@ async function loadTickets() {
     ...(ticketsStatus && { status: ticketsStatus }),
     ...(ticketsSearch && { search: ticketsSearch }),
   });
+  document.getElementById('ticketsTbody').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split me-1"></i>Chargement…</td></tr>';
   let data;
-  try { data = await apiFetch(`/api/admin/tickets?${params}`); } catch { return; }
-  if (!data?.success) return;
+  try { data = await apiFetch(`/api/admin/tickets?${params}`); } catch { data = null; }
+  if (!data?.success) {
+    document.getElementById('ticketsTbody').innerHTML =
+      `<tr><td colspan="8"><div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div></td></tr>`;
+    return;
+  }
 
   const tbody = document.getElementById('ticketsTbody');
   tbody.innerHTML = data.data.map(t => `
@@ -563,9 +647,15 @@ async function loadPayments() {
     page: paymentsPage, limit: 20,
     ...(paymentsStatus && { status: paymentsStatus }),
   });
+  document.getElementById('paymentsTbody').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split me-1"></i>Chargement…</td></tr>';
   let data;
-  try { data = await apiFetch(`/api/admin/payments?${params}`); } catch { return; }
-  if (!data?.success) return;
+  try { data = await apiFetch(`/api/admin/payments?${params}`); } catch { data = null; }
+  if (!data?.success) {
+    document.getElementById('paymentsTbody').innerHTML =
+      `<tr><td colspan="8"><div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div></td></tr>`;
+    return;
+  }
 
   const tbody = document.getElementById('paymentsTbody');
   tbody.innerHTML = data.data.map(p => `
@@ -677,84 +767,73 @@ async function loadOrganizers() {
     ...(orgsSearch && { search: orgsSearch }),
     ...(orgsActive !== '' && { is_active: orgsActive }),
   });
+  const grid = document.getElementById('orgsGrid');
+  grid.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>';
+
   let data;
   try { data = await apiFetch(`/api/admin/users?${params}`); } catch { return; }
-  if (!data?.success) return;
+  if (!data?.success) {
+    grid.innerHTML = '<div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i>Erreur de chargement</div>';
+    return;
+  }
 
-  const tbody = document.getElementById('orgsTbody');
-  tbody.innerHTML = data.data.map(o => `
-    <tr>
-      <td>
-        <div style="display:flex;align-items:center;gap:.65rem">
-          <div style="width:36px;height:36px;border-radius:10px;background:${orgColor(o.name)};
-            display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;flex-shrink:0">
-            ${avatar(o.name)}
+  if (!data.data.length) {
+    grid.innerHTML = '<div class="empty-state"><i class="bi bi-person-badge"></i>Aucun organisateur</div>';
+    renderPagination('orgsPagination', data.meta, (p) => { orgsPage = p; loadOrganizers(); });
+    return;
+  }
+
+  grid.innerHTML = data.data.map(o => {
+    const logoSrc  = o.avatar ? (o.avatar.startsWith('http') ? o.avatar : `${API_BASE}${o.avatar}`) : null;
+    const logoHtml = logoSrc
+      ? `<img src="${logoSrc}" class="org-card-logo" alt="${o.name}" onerror="this.outerHTML='<div class=org-card-logo-placeholder style=background:${orgColor(o.name)}>${avatar(o.name)}</div>'">`
+      : `<div class="org-card-logo-placeholder" style="background:${orgColor(o.name)}">${avatar(o.name)}</div>`;
+    return `
+    <div class="org-card">
+      <div class="org-card-header">
+        ${logoHtml}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${o.name}
+            ${o.is_verified ? '<i class="bi bi-patch-check-fill" style="color:var(--dj-blue);margin-left:.3rem;font-size:.8rem" title="Vérifié"></i>' : ''}
           </div>
-          <div>
-            <div style="font-weight:700;font-size:.84rem">${o.name}</div>
-            <div style="font-size:.72rem;color:var(--dj-muted)">${o.email}</div>
-          </div>
+          <div style="font-size:.72rem;color:var(--dj-muted);margin-top:.1rem">${o.city || o.country || 'Tchad'}</div>
         </div>
-      </td>
-      <td>${o.email}</td>
-      <td>${o.phone || '—'}</td>
-      <td>${o.city || o.country || '—'}</td>
-      <td><span style="background:rgba(0,0,255,.08);color:var(--dj-blue);border-radius:12px;padding:.15rem .55rem;font-size:.75rem;font-weight:600" id="orgEvCount-${o.id}">…</span></td>
-      <td>${o.is_active
-        ? '<span style="color:#16a34a;font-size:.82rem"><i class="bi bi-check-circle-fill"></i> Actif</span>'
-        : '<span style="color:#dc2626;font-size:.82rem"><i class="bi bi-x-circle-fill"></i> Suspendu</span>'}</td>
-      <td>${fmtDate(o.created_at)}</td>
-      <td style="white-space:nowrap">
-        <button class="btn-dj ghost sm" title="Voir la fiche" onclick="viewOrg('${o.id}')"><i class="bi bi-eye"></i></button>
-        <button class="btn-dj ghost sm" title="Modifier" onclick="openEditOrg(${JSON.stringify(o).replace(/"/g,'&quot;')})"><i class="bi bi-pencil"></i></button>
-        <button class="btn-dj danger sm" title="Suspendre" onclick="toggleOrgStatus('${o.id}','${o.name}',${o.is_active})"><i class="bi bi-${o.is_active ? 'slash-circle' : 'check-circle'}"></i></button>
-      </td>
-    </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="bi bi-person-badge"></i>Aucun organisateur</div></td></tr>`;
+        ${o.is_active
+          ? '<span class="org-status-badge active">Actif</span>'
+          : '<span class="org-status-badge suspended">Suspendu</span>'}
+      </div>
+
+      <div class="org-card-bio">${o.bio ? o.bio.substring(0,90)+(o.bio.length>90?'…':'') : '<em>Aucune description</em>'}</div>
+
+      <div class="org-card-info">
+        <span><i class="bi bi-envelope"></i>${o.email}</span>
+        <span><i class="bi bi-telephone"></i>${o.phone || '—'}</span>
+        <span id="orgEvCount-${o.id}"><i class="bi bi-calendar-event"></i>… événements</span>
+        <span><i class="bi bi-clock"></i>${fmtDate(o.created_at)}</span>
+      </div>
+
+      <div class="org-card-actions">
+        <button class="btn-dj ghost sm" onclick="viewOrg('${o.id}')"><i class="bi bi-eye"></i> Fiche</button>
+        <button class="btn-dj ghost sm" onclick="openEditOrg(${JSON.stringify(o).replace(/"/g,'&quot;')})"><i class="bi bi-pencil"></i> Modifier</button>
+        <button class="btn-dj ${o.is_active ? 'danger' : 'success'} sm" onclick="toggleOrgStatus('${o.id}','${(o.name||'').replace(/'/g,"\\'")}',${o.is_active})">
+          <i class="bi bi-${o.is_active ? 'slash-circle' : 'check-circle'}"></i> ${o.is_active ? 'Suspendre' : 'Réactiver'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 
   renderPagination('orgsPagination', data.meta, (p) => { orgsPage = p; loadOrganizers(); });
 
-  // Charger le nb d'événements de chaque organisateur en arrière-plan
+  // Événements par organisateur (arrière-plan)
   data.data.forEach(o => {
     apiFetch(`/api/admin/events?organizer_id=${o.id}&limit=1`).then(d => {
       const el = document.getElementById(`orgEvCount-${o.id}`);
-      if (el && d?.meta) el.textContent = `${fmtNum(d.meta.total)} événement${d.meta.total !== 1 ? 's' : ''}`;
+      if (el && d?.meta) el.innerHTML = `<i class="bi bi-calendar-event"></i>${fmtNum(d.meta.total)} événement${d.meta.total!==1?'s':''}`;
     }).catch(() => {});
   });
-
-  // Cartes visuelles
-  renderOrgCards(data.data);
 }
 
-function renderOrgCards(orgs) {
-  const grid = document.getElementById('orgsCardsGrid');
-  if (!grid) return;
-  if (!orgs.length) { grid.innerHTML = ''; return; }
-  grid.innerHTML = orgs.map(o => `
-    <div class="dj-card" style="padding:1.25rem;cursor:pointer" onclick="viewOrg('${o.id}')">
-      <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:.85rem">
-        <div style="width:48px;height:48px;border-radius:12px;background:${orgColor(o.name)};
-          display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.1rem;flex-shrink:0">
-          ${avatar(o.name)}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.name}</div>
-          <div style="font-size:.72rem;color:var(--dj-muted)">${o.city || o.country || 'Tchad'}</div>
-        </div>
-        ${o.is_verified ? '<i class="bi bi-patch-check-fill" style="color:var(--dj-blue);font-size:1rem" title="Vérifié"></i>' : ''}
-      </div>
-      <div style="font-size:.78rem;color:var(--dj-muted);margin-bottom:.85rem;min-height:2rem">
-        ${o.bio ? o.bio.substring(0,80) + (o.bio.length > 80 ? '…' : '') : '<em>Aucune description</em>'}
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:.72rem;color:var(--dj-muted)"><i class="bi bi-telephone me-1"></i>${o.phone || '—'}</div>
-        ${o.is_active
-          ? '<span style="background:rgba(22,163,74,.1);color:#16a34a;font-size:.7rem;border-radius:20px;padding:.15rem .6rem;font-weight:600"><i class="bi bi-circle-fill" style="font-size:.45rem;vertical-align:middle"></i> Actif</span>'
-          : '<span style="background:rgba(220,38,38,.1);color:#dc2626;font-size:.7rem;border-radius:20px;padding:.15rem .6rem;font-weight:600">Suspendu</span>'}
-      </div>
-    </div>`).join('');
-}
-
-document.getElementById('orgsSearch').addEventListener('input', function() { orgsSearch = this.value; orgsPage = 1; loadOrganizers(); });
 document.getElementById('orgsStatusFilter').addEventListener('change', function() { orgsActive = this.value; orgsPage = 1; loadOrganizers(); });
 
 /* ── Voir fiche organisateur ── */
@@ -772,10 +851,9 @@ async function viewOrg(id) {
 
   document.getElementById('orgDetailContent').innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--dj-border)">
-      <div style="width:60px;height:60px;border-radius:14px;background:${orgColor(o.name)};
-        display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.4rem;flex-shrink:0">
-        ${avatar(o.name)}
-      </div>
+      ${o.avatar
+        ? `<img src="${o.avatar.startsWith('http') ? o.avatar : API_BASE+o.avatar}" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:2px solid var(--dj-border);flex-shrink:0" alt="${o.name}">`
+        : `<div style="width:64px;height:64px;border-radius:14px;background:${orgColor(o.name)};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.5rem;flex-shrink:0">${avatar(o.name)}</div>`}
       <div>
         <div style="font-size:1.05rem;font-weight:800">${o.name}
           ${o.is_verified ? '<i class="bi bi-patch-check-fill" style="color:var(--dj-blue);margin-left:.3rem" title="Vérifié"></i>' : ''}
@@ -802,7 +880,7 @@ async function viewOrg(id) {
     <button type="button" class="btn-dj warning" onclick="toggleOrgStatus('${o.id}','${o.name}',${o.is_active});closeModal('modalViewOrg')">
       <i class="bi bi-${o.is_active ? 'slash-circle' : 'check-circle'}"></i> ${o.is_active ? 'Suspendre' : 'Réactiver'}
     </button>
-    <button type="button" class="btn-dj primary" onclick="closeModal('modalViewOrg');openEditOrg(${JSON.stringify(o).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026')})">
+    <button type="button" class="btn-dj primary" onclick="closeModal('modalViewOrg');openEditOrg(${JSON.stringify(o).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026').replace(/"/g,'&quot;')})">
       <i class="bi bi-pencil"></i> Modifier
     </button>`;
 }
@@ -818,6 +896,15 @@ function openEditOrg(o) {
   document.getElementById('editOrgBio').value     = o.bio     || '';
   document.getElementById('editOrgActive').value  = o.is_active ? '1' : '0';
   document.getElementById('editOrgVerified').value= o.is_verified ? '1' : '0';
+  // Logo existant
+  const logoWrap = document.getElementById('editOrgCurrentLogo');
+  if (o.avatar) {
+    const logoSrc = o.avatar.startsWith('http') ? o.avatar : `${API_BASE}${o.avatar}`;
+    document.getElementById('editOrgCurrentLogoImg').src = logoSrc;
+    logoWrap.style.display = 'block';
+  } else { logoWrap.style.display = 'none'; }
+  document.getElementById('editOrgLogo').value = '';
+  document.getElementById('editOrgLogoPreview').style.display = 'none';
   document.getElementById('btnSuspendOrg').onclick = () => toggleOrgStatus(o.id, o.name, o.is_active, true);
   document.getElementById('btnSuspendOrg').innerHTML = o.is_active
     ? '<i class="bi bi-slash-circle"></i> Suspendre'
@@ -831,17 +918,19 @@ document.getElementById('formEditOrg').addEventListener('submit', async (e) => {
   const btn = e.submitter || e.target.querySelector('[type=submit]');
   setBtnLoading(btn, true);
   const id = document.getElementById('editOrgId').value;
-  const body = {
-    name:        document.getElementById('editOrgName').value,
-    email:       document.getElementById('editOrgEmail').value,
-    phone:       document.getElementById('editOrgPhone').value,
-    city:        document.getElementById('editOrgCity').value,
-    country:     document.getElementById('editOrgCountry').value,
-    bio:         document.getElementById('editOrgBio').value,
-    is_active:   parseInt(document.getElementById('editOrgActive').value),
-    is_verified: parseInt(document.getElementById('editOrgVerified').value),
-  };
-  const data = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: JSON.stringify(body) });
+  const fd = new FormData();
+  fd.append('name',        document.getElementById('editOrgName').value);
+  fd.append('email',       document.getElementById('editOrgEmail').value);
+  fd.append('phone',       document.getElementById('editOrgPhone').value);
+  fd.append('city',        document.getElementById('editOrgCity').value);
+  fd.append('country',     document.getElementById('editOrgCountry').value);
+  fd.append('bio',         document.getElementById('editOrgBio').value);
+  fd.append('is_active',   document.getElementById('editOrgActive').value);
+  fd.append('is_verified', document.getElementById('editOrgVerified').value);
+  const logoFile = document.getElementById('editOrgLogo').files[0];
+  if (logoFile) fd.append('avatar', logoFile);
+
+  const data = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: fd });
   setBtnLoading(btn, false);
   if (data?.success) { toast('Organisateur mis à jour ✓', 'success'); closeModal('modalEditOrg'); loadOrganizers(); }
   else toast(data?.message || 'Erreur', 'error');
@@ -850,24 +939,27 @@ document.getElementById('formEditOrg').addEventListener('submit', async (e) => {
 /* ── Créer un organisateur ── */
 document.getElementById('formCreateOrg').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const btn = e.submitter || e.target.querySelector('[type=submit]');
+  const btn = document.getElementById('btnCreateOrg') || e.submitter || e.target.querySelector('[type=submit]');
   setBtnLoading(btn, true);
-  const body = {
-    name:     document.getElementById('newOrgName').value,
-    email:    document.getElementById('newOrgEmail').value,
-    phone:    document.getElementById('newOrgPhone').value,
-    city:     document.getElementById('newOrgCity').value,
-    country:  document.getElementById('newOrgCountry').value || 'Tchad',
-    bio:      document.getElementById('newOrgBio').value,
-    password: document.getElementById('newOrgPassword').value,
-    role:     'organizer',
-  };
-  const data = await apiFetch('/api/admin/users', { method:'POST', body: JSON.stringify(body) });
+  const fd = new FormData();
+  fd.append('name',     document.getElementById('newOrgName').value);
+  fd.append('email',    document.getElementById('newOrgEmail').value);
+  fd.append('phone',    document.getElementById('newOrgPhone').value);
+  fd.append('city',     document.getElementById('newOrgCity').value);
+  fd.append('country',  document.getElementById('newOrgCountry').value || 'Tchad');
+  fd.append('bio',      document.getElementById('newOrgBio').value);
+  fd.append('password', document.getElementById('newOrgPassword').value);
+  fd.append('role',     'organizer');
+  const logoFile = document.getElementById('newOrgLogo').files[0];
+  if (logoFile) fd.append('avatar', logoFile);
+
+  const data = await apiFetch('/api/admin/users', { method:'POST', body: fd });
   setBtnLoading(btn, false);
   if (data?.success) {
     toast('Organisateur créé ✓', 'success');
     closeModal('modalCreateOrg');
     e.target.reset();
+    document.getElementById('newOrgLogoPreview').style.display = 'none';
     loadOrganizers();
   } else toast(data?.message || 'Erreur', 'error');
 });
@@ -889,9 +981,15 @@ async function toggleOrgStatus(id, name, isActive, fromModal = false) {
 
 /* ══════════════════════ SCAN LOGS ══════════════════════ */
 async function loadScanLogs() {
+  document.getElementById('scansTbody').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split me-1"></i>Chargement…</td></tr>';
   let data;
-  try { data = await apiFetch('/api/admin/scan-logs?limit=50'); } catch { return; }
-  if (!data?.success) return;
+  try { data = await apiFetch('/api/admin/scan-logs?limit=50'); } catch { data = null; }
+  if (!data?.success) {
+    document.getElementById('scansTbody').innerHTML =
+      `<tr><td colspan="6"><div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div></td></tr>`;
+    return;
+  }
 
   const tbody = document.getElementById('scansTbody');
   tbody.innerHTML = data.data.map(s => `
@@ -985,6 +1083,359 @@ function renderPagination(containerId, meta, onPage) {
   el.innerHTML = html;
 }
 
+/* ══════════════════════ SPEAKERS ══════════════════════ */
+let _spPage = 1;
+
+async function loadSpeakers(page = 1) {
+  _spPage = page;
+  const search = document.getElementById('speakersSearch')?.value?.trim() || '';
+  const params = new URLSearchParams({ page, limit: 20, ...(search && { search }) });
+  const tbody = document.getElementById('speakersTbody');
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split"></i> Chargement…</td></tr>`;
+
+  const data = await apiFetch(`/api/admin/speakers?${params}`);
+  if (!data?.success) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#f87171;padding:1.5rem;text-align:center"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.data.map(s => `
+    <tr>
+      <td><div class="sp-avatar">${s.photo ? `<img src="${s.photo}" alt="${s.name}">` : avatar(s.name)}</div></td>
+      <td>
+        <strong style="color:var(--dj-text)">${s.name}</strong>
+        ${s.email ? `<br><span style="font-size:.75rem;color:var(--dj-muted)">${s.email}</span>` : ''}
+      </td>
+      <td>
+        ${s.job_title ? `<span style="font-size:.82rem">${s.job_title}</span>` : ''}
+        ${s.company ? `<br><span style="font-size:.75rem;color:var(--dj-muted)">${s.company}</span>` : ''}
+      </td>
+      <td><span style="font-size:.82rem">${s.organizer_name || '—'}</span></td>
+      <td><span class="badge" style="background:rgba(99,102,241,.15);color:#6366f1">Sessions à venir</span></td>
+      <td>${s.is_active ? '<span class="badge green">Actif</span>' : '<span class="badge" style="background:rgba(239,68,68,.15);color:#f87171">Inactif</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-dj ghost sm" title="Modifier" onclick="openEditSpeakerModal('${s.id}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn-dj danger sm" title="Supprimer" onclick="deleteSpeaker('${s.id}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7"><div class="empty-state"><i class="bi bi-mic-mute"></i>Aucun speaker</div></td></tr>`;
+
+  renderPagination('speakersPagination', data.meta, loadSpeakers);
+}
+
+function openCreateSpeakerModal() {
+  document.getElementById('formCreateSpeaker').reset();
+  document.getElementById('newSpPreview').style.display = 'none';
+  openModal('modalCreateSpeaker');
+}
+
+async function openEditSpeakerModal(id) {
+  openModal('modalEditSpeaker');
+  document.getElementById('editSpId').value = id;
+  const data = await apiFetch(`/api/admin/speakers/${id}`);
+  if (!data?.success) { toast('Impossible de charger le speaker', 'error'); return; }
+  const s = data.data;
+  const sl = s.social_links || {};
+  document.getElementById('editSpName').value     = s.name || '';
+  document.getElementById('editSpJobTitle').value = s.job_title || '';
+  document.getElementById('editSpCompany').value  = s.company || '';
+  document.getElementById('editSpEmail').value    = s.email || '';
+  document.getElementById('editSpPhone').value    = s.phone || '';
+  document.getElementById('editSpBio').value      = s.bio || '';
+  document.getElementById('editSpActive').value   = s.is_active ? '1' : '0';
+  document.getElementById('editSpTwitter').value  = sl.twitter || '';
+  document.getElementById('editSpLinkedin').value = sl.linkedin || '';
+  document.getElementById('editSpInstagram').value= sl.instagram || '';
+  document.getElementById('editSpWebsite').value  = sl.website || '';
+  document.getElementById('editSpPreview').style.display = 'none';
+  document.getElementById('editSpPhoto').value = '';
+  const photoWrap = document.getElementById('editSpCurrentPhoto');
+  if (s.photo) {
+    photoWrap.style.display = 'block';
+    document.getElementById('editSpCurrentPhotoImg').src = s.photo;
+  } else { photoWrap.style.display = 'none'; }
+}
+
+function buildSocialLinks(prefix) {
+  const sl = {};
+  const t = document.getElementById(`${prefix}Twitter`)?.value?.trim();
+  const l = document.getElementById(`${prefix}Linkedin`)?.value?.trim();
+  const i = document.getElementById(`${prefix}Instagram`)?.value?.trim();
+  const w = document.getElementById(`${prefix}Website`)?.value?.trim();
+  if (t) sl.twitter   = t;
+  if (l) sl.linkedin  = l;
+  if (i) sl.instagram = i;
+  if (w) sl.website   = w;
+  return sl;
+}
+
+document.getElementById('formCreateSpeaker').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnCreateSpeaker');
+  setBtnLoading(btn, true);
+  const fd = new FormData();
+  fd.append('name',         document.getElementById('newSpName').value);
+  fd.append('job_title',    document.getElementById('newSpJobTitle').value);
+  fd.append('company',      document.getElementById('newSpCompany').value);
+  fd.append('email',        document.getElementById('newSpEmail').value);
+  fd.append('phone',        document.getElementById('newSpPhone').value);
+  fd.append('bio',          document.getElementById('newSpBio').value);
+  fd.append('is_active',    document.getElementById('newSpActive').value);
+  fd.append('social_links', JSON.stringify(buildSocialLinks('newSp')));
+  const photoFile = document.getElementById('newSpPhoto').files[0];
+  if (photoFile) fd.append('photo', photoFile);
+
+  const data = await apiFetch('/api/admin/speakers', { method: 'POST', body: fd, isFormData: true });
+  setBtnLoading(btn, false);
+  if (data?.success) {
+    toast('Speaker créé avec succès', 'success');
+    closeModal('modalCreateSpeaker');
+    loadSpeakers(_spPage);
+  } else toast(data?.message || 'Erreur lors de la création', 'error');
+});
+
+document.getElementById('formEditSpeaker').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnEditSpeaker');
+  setBtnLoading(btn, true);
+  const id = document.getElementById('editSpId').value;
+  const fd = new FormData();
+  fd.append('name',         document.getElementById('editSpName').value);
+  fd.append('job_title',    document.getElementById('editSpJobTitle').value);
+  fd.append('company',      document.getElementById('editSpCompany').value);
+  fd.append('email',        document.getElementById('editSpEmail').value);
+  fd.append('phone',        document.getElementById('editSpPhone').value);
+  fd.append('bio',          document.getElementById('editSpBio').value);
+  fd.append('is_active',    document.getElementById('editSpActive').value);
+  fd.append('social_links', JSON.stringify(buildSocialLinks('editSp')));
+  const photoFile = document.getElementById('editSpPhoto').files[0];
+  if (photoFile) fd.append('photo', photoFile);
+
+  const data = await apiFetch(`/api/admin/speakers/${id}`, { method: 'PUT', body: fd, isFormData: true });
+  setBtnLoading(btn, false);
+  if (data?.success) {
+    toast('Speaker mis à jour', 'success');
+    closeModal('modalEditSpeaker');
+    loadSpeakers(_spPage);
+  } else toast(data?.message || 'Erreur', 'error');
+});
+
+async function deleteSpeaker(id, name) {
+  if (!confirm(`Supprimer le speaker "${name}" ?\nIl sera retiré de toutes les sessions.`)) return;
+  const data = await apiFetch(`/api/admin/speakers/${id}`, { method: 'DELETE' });
+  if (data?.success) { toast('Speaker supprimé', 'success'); loadSpeakers(_spPage); }
+  else toast(data?.message || 'Erreur', 'error');
+}
+
+/* ══════════════════════ AGENDA ══════════════════════ */
+let _agendaEventId    = null;
+let _agendaEventTitle = null;
+let _allSpeakers      = [];  // cache pour le picker
+
+async function openAgendaModal(eventId, eventTitle) {
+  _agendaEventId    = eventId;
+  _agendaEventTitle = eventTitle;
+  document.getElementById('agendaEventTitle').textContent = eventTitle;
+  openModal('modalAgenda');
+  await loadAgenda();
+}
+
+async function loadAgenda() {
+  const container = document.getElementById('agendaSessionsList');
+  const countEl   = document.getElementById('agendaSessionCount');
+  container.innerHTML = `<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>`;
+
+  const data = await apiFetch(`/api/admin/events/${_agendaEventId}/sessions`);
+  if (!data?.success) {
+    container.innerHTML = `<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur de chargement</div>`;
+    return;
+  }
+
+  const sessions = data.data;
+  countEl.textContent = `${sessions.length} session(s)`;
+
+  if (!sessions.length) {
+    container.innerHTML = `<div class="empty-state"><i class="bi bi-calendar3"></i>Aucune session — ajoutez-en une !</div>`;
+    return;
+  }
+
+  const typeLabels = { keynote:'Keynote', conference:'Conférence', workshop:'Atelier', panel:'Table ronde', networking:'Networking', break:'Pause', other:'Autre' };
+
+  container.innerHTML = sessions.map(s => {
+    const start = s.start_time ? new Date(s.start_time) : null;
+    const end   = s.end_time   ? new Date(s.end_time)   : null;
+    const timeStr = start
+      ? `${start.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}${end ? ' – '+end.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}`
+      : '—';
+    const dateStr = start ? start.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}) : '';
+
+    const speakersHtml = (s.speakers||[]).map(sp =>
+      `<span class="session-speaker-chip">${sp.photo ? `<img src="${sp.photo}" alt="${sp.name}">` : `<span style="width:20px;height:20px;border-radius:50%;background:var(--dj-surface2);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700">${avatar(sp.name)}</span>`}${sp.name}${sp.role && sp.role !== 'speaker' ? ` <em style="color:var(--dj-muted)">(${sp.role})</em>` : ''}</span>`
+    ).join('');
+
+    return `
+    <div class="session-card">
+      <div class="session-time">
+        <strong>${timeStr}</strong>
+        ${dateStr}
+      </div>
+      <div class="session-body">
+        <div class="session-title">
+          <span class="sess-type ${s.type}">${typeLabels[s.type]||s.type}</span>
+          ${s.is_visible ? '' : '<span class="badge" style="background:rgba(239,68,68,.1);color:#f87171;font-size:.7rem">Masquée</span>'}
+          <span style="margin-left:.4rem">${s.title}</span>
+        </div>
+        <div class="session-meta">
+          ${s.room ? `<span><i class="bi bi-geo-alt"></i>${s.room}</span>` : ''}
+          ${s.capacity ? `<span><i class="bi bi-people"></i>${s.registered||0}/${s.capacity}</span>` : (s.registered ? `<span><i class="bi bi-people"></i>${s.registered} inscrits</span>` : '')}
+          ${s.access_conditions ? `<span title="${s.access_conditions}"><i class="bi bi-lock"></i>Conditions d'accès</span>` : ''}
+        </div>
+        ${s.description ? `<div style="font-size:.8rem;color:var(--dj-muted);margin-bottom:.35rem;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.description}</div>` : ''}
+        ${speakersHtml ? `<div class="session-speakers">${speakersHtml}</div>` : ''}
+      </div>
+      <div class="session-actions">
+        <button class="btn-dj ghost sm" title="Modifier" onclick="openEditSessionModal('${s.id}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn-dj danger sm" title="Supprimer" onclick="deleteSession('${s.id}','${(s.title||'').replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadSpeakerPickerInto(containerId, selectedIds = []) {
+  // On charge les speakers de l'organisateur, on met à jour le cache
+  if (!_allSpeakers.length) {
+    const data = await apiFetch('/api/admin/speakers?limit=200');
+    _allSpeakers = data?.data || [];
+  }
+  const container = document.getElementById(containerId);
+  if (!_allSpeakers.length) {
+    container.innerHTML = `<div style="color:var(--dj-muted);font-size:.82rem;padding:.5rem">Aucun speaker disponible. Créez-en d'abord dans la section Speakers.</div>`;
+    return;
+  }
+  container.innerHTML = _allSpeakers.map(sp => {
+    const checked   = selectedIds.includes(sp.id) ? 'checked' : '';
+    const photoHtml = sp.photo ? `<img src="${sp.photo}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">` : `<div class="sp-avatar" style="width:24px;height:24px;font-size:.65rem">${avatar(sp.name)}</div>`;
+    return `
+    <label class="speaker-pick-item">
+      <input type="checkbox" name="sp_pick" value="${sp.id}" data-role="speaker" ${checked}>
+      ${photoHtml}
+      <span style="font-size:.82rem"><strong>${sp.name}</strong>${sp.job_title ? ` <span style="color:var(--dj-muted)">— ${sp.job_title}</span>` : ''}</span>
+      <span class="sp-pick-role">
+        <select onchange="this.closest('label').querySelector('input').dataset.role=this.value">
+          <option value="speaker">Speaker</option>
+          <option value="moderator">Modérateur</option>
+          <option value="panelist">Panéliste</option>
+          <option value="facilitator">Facilitateur</option>
+        </select>
+      </span>
+    </label>`;
+  }).join('');
+  // Remettre les rôles existants si édition
+}
+
+function getPickedSpeakers(containerId) {
+  const checks = document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`);
+  return Array.from(checks).map(c => ({ speaker_id: c.value, role: c.dataset.role || 'speaker' }));
+}
+
+function openCreateSessionModal() {
+  document.getElementById('formCreateSession').reset();
+  _allSpeakers = []; // forcer le rechargement
+  loadSpeakerPickerInto('newSessSpeakerPicker', []);
+  openModal('modalCreateSession');
+}
+
+async function openEditSessionModal(id) {
+  openModal('modalEditSession');
+  document.getElementById('editSessId').value = id;
+  const data = await apiFetch(`/api/admin/sessions/${id}`);
+  if (!data?.success) { toast('Impossible de charger la session', 'error'); return; }
+  const s = data.data;
+  document.getElementById('editSessTitle').value    = s.title || '';
+  document.getElementById('editSessType').value     = s.type  || 'conference';
+  document.getElementById('editSessRoom').value     = s.room  || '';
+  document.getElementById('editSessStart').value    = toDatetimeLocal(s.start_time);
+  document.getElementById('editSessEnd').value      = toDatetimeLocal(s.end_time);
+  document.getElementById('editSessCapacity').value = s.capacity || '';
+  document.getElementById('editSessOrder').value    = s.order_index ?? 0;
+  document.getElementById('editSessVisible').value  = s.is_visible ? '1' : '0';
+  document.getElementById('editSessDesc').value     = s.description || '';
+  document.getElementById('editSessAccess').value   = s.access_conditions || '';
+
+  const selectedIds = (s.speakers || []).map(sp => sp.id);
+  _allSpeakers = []; // forcer rechargement
+  await loadSpeakerPickerInto('editSessSpeakerPicker', selectedIds);
+
+  // Remettre les rôles sélectionnés
+  (s.speakers || []).forEach(sp => {
+    const input = document.querySelector(`#editSessSpeakerPicker input[value="${sp.id}"]`);
+    if (input) {
+      const sel = input.closest('label').querySelector('select');
+      if (sel) sel.value = sp.role || 'speaker';
+      input.dataset.role = sp.role || 'speaker';
+    }
+  });
+}
+
+document.getElementById('formCreateSession').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnCreateSession');
+  setBtnLoading(btn, true);
+  const body = {
+    title:             document.getElementById('newSessTitle').value,
+    type:              document.getElementById('newSessType').value,
+    room:              document.getElementById('newSessRoom').value,
+    start_time:        document.getElementById('newSessStart').value,
+    end_time:          document.getElementById('newSessEnd').value || null,
+    capacity:          document.getElementById('newSessCapacity').value || null,
+    order_index:       parseInt(document.getElementById('newSessOrder').value) || 0,
+    is_visible:        parseInt(document.getElementById('newSessVisible').value),
+    description:       document.getElementById('newSessDesc').value,
+    access_conditions: document.getElementById('newSessAccess').value,
+    speakers:          getPickedSpeakers('newSessSpeakerPicker'),
+  };
+  const data = await apiFetch(`/api/admin/events/${_agendaEventId}/sessions`, { method: 'POST', body: JSON.stringify(body) });
+  setBtnLoading(btn, false);
+  if (data?.success) {
+    toast('Session créée', 'success');
+    closeModal('modalCreateSession');
+    loadAgenda();
+  } else toast(data?.message || 'Erreur', 'error');
+});
+
+document.getElementById('formEditSession').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnEditSession');
+  setBtnLoading(btn, true);
+  const id = document.getElementById('editSessId').value;
+  const body = {
+    title:             document.getElementById('editSessTitle').value,
+    type:              document.getElementById('editSessType').value,
+    room:              document.getElementById('editSessRoom').value,
+    start_time:        document.getElementById('editSessStart').value,
+    end_time:          document.getElementById('editSessEnd').value || null,
+    capacity:          document.getElementById('editSessCapacity').value || null,
+    order_index:       parseInt(document.getElementById('editSessOrder').value) || 0,
+    is_visible:        parseInt(document.getElementById('editSessVisible').value),
+    description:       document.getElementById('editSessDesc').value,
+    access_conditions: document.getElementById('editSessAccess').value,
+    speakers:          getPickedSpeakers('editSessSpeakerPicker'),
+  };
+  const data = await apiFetch(`/api/admin/sessions/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  setBtnLoading(btn, false);
+  if (data?.success) {
+    toast('Session mise à jour', 'success');
+    closeModal('modalEditSession');
+    loadAgenda();
+  } else toast(data?.message || 'Erreur', 'error');
+});
+
+async function deleteSession(id, title) {
+  if (!confirm(`Supprimer la session "${title}" ?\nLes réservations associées seront perdues.`)) return;
+  const data = await apiFetch(`/api/admin/sessions/${id}`, { method: 'DELETE' });
+  if (data?.success) { toast('Session supprimée', 'success'); loadAgenda(); }
+  else toast(data?.message || 'Erreur', 'error');
+}
+
 /* ── Logout ── */
 document.getElementById('btnLogout').addEventListener('click', async () => {
   await apiFetch('/api/auth/logout', { method:'POST' });
@@ -992,7 +1443,9 @@ document.getElementById('btnLogout').addEventListener('click', async () => {
 });
 
 /* ── Start ── */
-navigate('dashboard');
+const VALID_SECTIONS = ['dashboard','organizers','users','events','tickets','payments','scanlogs','categories','speakers'];
+const savedSection = localStorage.getItem('djhina_admin_section');
+navigate(VALID_SECTIONS.includes(savedSection) ? savedSection : 'dashboard');
 
 /* ── Auto-hide admin-only items for organizer ── */
 if (ME.role !== 'admin') {

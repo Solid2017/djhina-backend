@@ -4,7 +4,7 @@ const { pool } = require('../config/database');
 
 // ── GET /api/admin/stats ─────────────────────────────────────
 exports.stats = async (req, res) => {
-  const [[users]]   = await pool.execute('SELECT COUNT(*) AS total FROM users WHERE role = "user"');
+  const [[users]]   = await pool.execute('SELECT COUNT(*) AS total FROM users WHERE role != "admin"');
   const [[orgs]]    = await pool.execute('SELECT COUNT(*) AS total FROM users WHERE role = "organizer"');
   const [[events]]  = await pool.execute('SELECT COUNT(*) AS total FROM events');
   const [[tickets]] = await pool.execute('SELECT COUNT(*) AS total FROM tickets');
@@ -106,12 +106,22 @@ exports.updateUser = async (req, res) => {
     if (val !== undefined) { fields.push(`${key} = ?`); values.push(val); }
   });
 
+  // Logo / avatar upload
+  if (req.file) {
+    fields.push('avatar = ?');
+    values.push(`/uploads/avatars/${req.file.filename}`);
+  }
+
   if (!fields.length) return res.status(400).json({ success: false, message: 'Aucune modification fournie.' });
 
   values.push(req.params.id);
   await pool.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
 
-  return res.json({ success: true, message: 'Utilisateur mis à jour.' });
+  const [[updated]] = await pool.execute(
+    'SELECT id, name, email, phone, role, avatar, country, city, bio, is_active, is_verified FROM users WHERE id = ?',
+    [req.params.id]
+  );
+  return res.json({ success: true, message: 'Utilisateur mis à jour.', data: updated });
 };
 
 // ── DELETE /api/admin/users/:id ──────────────────────────────
@@ -130,15 +140,59 @@ exports.createUser = async (req, res) => {
   const [exists] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
   if (exists.length) return res.status(409).json({ success: false, message: 'Email déjà utilisé.' });
 
-  const hash = await bcrypt.hash(password, 12);
-  const id   = uuidv4();
+  const hash   = await bcrypt.hash(password, 12);
+  const id     = uuidv4();
+  const avatar = req.file ? `/uploads/avatars/${req.file.filename}` : null;
 
   await pool.execute(
-    'INSERT INTO users (id, name, email, phone, password, role, country, city, bio, is_verified) VALUES (?,?,?,?,?,?,?,?,?,1)',
-    [id, name, email, phone || null, hash, role, country || 'Tchad', city || null, bio || null]
+    'INSERT INTO users (id, name, email, phone, password, role, country, city, bio, avatar, is_verified) VALUES (?,?,?,?,?,?,?,?,?,?,1)',
+    [id, name, email, phone || null, hash, role, country || 'Tchad', city || null, bio || null, avatar]
   );
 
   return res.status(201).json({ success: true, message: 'Utilisateur créé.', data: { id } });
+};
+
+// ── POST /api/admin/events ───────────────────────────────────
+exports.createEvent = async (req, res) => {
+  const {
+    title, subtitle, description, category_id,
+    date, time, end_time, location, city, country,
+    capacity, is_featured, tags, status,
+  } = req.body;
+
+  // L'admin peut créer un événement au nom d'un organisateur ou en son propre nom
+  const organizer_id = req.body.organizer_id || req.user.id;
+  const cover_image = req.file ? `/uploads/events/${req.file.filename}` : (req.body.cover_image || null);
+  const id = uuidv4();
+
+  // Séparer date + heure si la valeur vient d'un input datetime-local (ex: "2025-12-31T18:00")
+  let eventDate = date, eventTime = time || null;
+  if (date && date.includes('T')) {
+    [eventDate, eventTime] = date.split('T');
+  }
+  let eventEndTime = end_time || null;
+  if (eventEndTime && eventEndTime.includes('T')) {
+    eventEndTime = eventEndTime.split('T')[1];
+  }
+
+  await pool.execute(
+    `INSERT INTO events
+      (id, organizer_id, category_id, title, subtitle, description,
+       cover_image, date, time, end_time, location, city, country,
+       capacity, is_featured, tags, status)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      id, organizer_id, category_id || null,
+      title, subtitle || null, description || null,
+      cover_image, eventDate, eventTime, eventEndTime,
+      location, city || "N'Djaména", country || 'Tchad',
+      capacity || 0, is_featured ? 1 : 0,
+      JSON.stringify(tags || []),
+      status || 'draft',
+    ]
+  );
+
+  return res.status(201).json({ success: true, message: 'Événement créé.', data: { id } });
 };
 
 // ── GET /api/admin/events/:id ────────────────────────────────
@@ -164,29 +218,34 @@ exports.getEvent = async (req, res) => {
 
 // ── GET /api/admin/events ────────────────────────────────────
 exports.listEvents = async (req, res) => {
-  const { status, page = 1, limit = 20 } = req.query;
+  const { status, organizer_id, search, page = 1, limit = 20 } = req.query;
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   const where  = ['1=1'];
   const params = [];
 
-  if (status) { where.push('e.status = ?'); params.push(status); }
+  if (status)       { where.push('e.status = ?');       params.push(status); }
+  if (organizer_id) { where.push('e.organizer_id = ?'); params.push(organizer_id); }
+  if (search)       { where.push('(e.title LIKE ? OR e.location LIKE ? OR u.name LIKE ?)');
+                      params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
 
   const whereClause = where.join(' AND ');
 
   const [[{ total }]] = await pool.execute(
-    `SELECT COUNT(*) AS total FROM events e WHERE ${whereClause}`, params
+    `SELECT COUNT(*) AS total FROM events e JOIN users u ON e.organizer_id = u.id WHERE ${whereClause}`, params
   );
   const [events] = await pool.execute(
-    `SELECT e.id, e.title, e.date, e.status, e.capacity, e.registered, e.is_featured, e.created_at,
-       u.name AS organizer_name, u.email AS organizer_email,
-       c.label AS category
+    `SELECT e.id, e.title, e.date, e.status, e.capacity, e.registered,
+            e.is_featured, e.cover_image, e.location, e.city, e.created_at,
+            u.name AS organizer_name, u.email AS organizer_email, u.avatar AS organizer_logo,
+            c.label AS category
      FROM events e
      JOIN users u ON e.organizer_id = u.id
      LEFT JOIN categories c ON e.category_id = c.id
      WHERE ${whereClause}
-     ORDER BY e.created_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+     ORDER BY e.created_at DESC
+     LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`,
+    params
   );
 
   return res.json({
@@ -194,6 +253,57 @@ exports.listEvents = async (req, res) => {
     data: events,
     meta: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
   });
+};
+
+// ── PUT /api/admin/events/:id ────────────────────────────────
+exports.updateEvent = async (req, res) => {
+  const { id } = req.params;
+
+  // Traiter date/heure depuis datetime-local
+  const body = { ...req.body };
+  if (body.date && body.date.includes('T')) {
+    const [d, t] = body.date.split('T');
+    body.date = d;
+    if (!body.time) body.time = t;
+  }
+  if (body.end_time && body.end_time.includes('T')) {
+    body.end_time = body.end_time.split('T')[1];
+  }
+
+  const allowed = ['title', 'subtitle', 'description', 'category_id',
+    'date', 'time', 'end_time', 'location', 'city', 'country', 'capacity', 'is_featured', 'tags'];
+
+  const fields = [];
+  const values = [];
+
+  allowed.forEach(key => {
+    if (body[key] !== undefined && body[key] !== '') {
+      fields.push(`${key} = ?`);
+      const val = key === 'tags' ? JSON.stringify(body[key]) : body[key];
+      values.push(val);
+    }
+  });
+
+  if (req.file) {
+    fields.push('cover_image = ?');
+    values.push(`/uploads/events/${req.file.filename}`);
+  }
+
+  if (!fields.length) {
+    return res.status(400).json({ success: false, message: 'Aucune modification fournie.' });
+  }
+
+  values.push(id);
+  await pool.execute(`UPDATE events SET ${fields.join(', ')} WHERE id = ?`, values);
+  return res.json({ success: true, message: 'Événement mis à jour.' });
+};
+
+// ── DELETE /api/admin/events/:id ─────────────────────────────
+exports.deleteEvent = async (req, res) => {
+  const [rows] = await pool.execute('SELECT id FROM events WHERE id = ?', [req.params.id]);
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Événement introuvable.' });
+  await pool.execute('UPDATE events SET status = "cancelled" WHERE id = ?', [req.params.id]);
+  return res.json({ success: true, message: 'Événement annulé.' });
 };
 
 // ── PUT /api/admin/events/:id/status ────────────────────────
@@ -243,8 +353,9 @@ exports.listPayments = async (req, res) => {
      JOIN events      e  ON p.event_id      = e.id
      LEFT JOIN ticket_types tt ON p.ticket_type_id = tt.id
      WHERE ${wc}
-     ORDER BY p.created_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+     ORDER BY p.created_at DESC
+     LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`,
+    [...params]
   );
 
   return res.json({
@@ -338,8 +449,9 @@ exports.listTickets = async (req, res) => {
      JOIN ticket_types tt ON t.ticket_type_id = tt.id
      JOIN users        u  ON t.user_id        = u.id
      WHERE ${wc}
-     ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+     ORDER BY t.created_at DESC
+     LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`,
+    [...params]
   );
 
   return res.json({
@@ -414,8 +526,9 @@ exports.scanLogs = async (req, res) => {
      LEFT JOIN users   u ON sl.scanned_by = u.id
      LEFT JOIN events  e ON sl.event_id   = e.id
      WHERE ${whereClause}
-     ORDER BY sl.created_at DESC LIMIT ? OFFSET ?`,
-    [...params, parseInt(limit), offset]
+     ORDER BY sl.created_at DESC
+     LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`,
+    [...params]
   );
 
   return res.json({

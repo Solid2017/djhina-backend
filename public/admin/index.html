@@ -6,7 +6,7 @@
   <title>Djhina Admin</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="css/admin.css?v=4" rel="stylesheet">
+  <link href="css/admin.css?v=10" rel="stylesheet">
 </head>
 <body>
 <div class="app-layout">
@@ -55,6 +55,13 @@
       </a>
       <a class="nav-item admin-only" data-section="categories">
         <i class="bi bi-tags"></i> Catégories
+      </a>
+    </nav>
+
+    <nav class="nav-section">
+      <div class="nav-label">Programme</div>
+      <a class="nav-item" data-section="speakers">
+        <i class="bi bi-mic"></i> Speakers
       </a>
     </nav>
 
@@ -150,32 +157,28 @@
 
       <!-- ══ EVENTS ══ -->
       <section class="section" id="sec-events">
-        <div class="dj-card">
-          <div class="dj-card-header">
-            <i class="bi bi-calendar-event" style="color:#d97706"></i>
-            <h5>Événements</h5>
-            <div class="ms-auto">
-              <select id="eventsStatusFilter" class="dj-select">
-                <option value="">Tous les statuts</option>
-                <option value="published">Publié</option>
-                <option value="draft">Brouillon</option>
-                <option value="cancelled">Annulé</option>
-              </select>
-              <button class="btn-dj primary" onclick="openCreateEventModal()" style="margin-left:.5rem">
-                <i class="bi bi-plus-lg"></i> Nouvel événement
-              </button>
+        <div class="section-toolbar">
+          <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+            <select id="eventsStatusFilter" class="dj-select">
+              <option value="">Tous les statuts</option>
+              <option value="published">Publié</option>
+              <option value="draft">Brouillon</option>
+              <option value="cancelled">Annulé</option>
+            </select>
+            <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
+              <i class="bi bi-search"></i>
+              <input id="eventsSearch" type="text" class="dj-input" placeholder="Rechercher un événement…" style="width:200px"
+                oninput="clearTimeout(window._evSearchT);window._evSearchT=setTimeout(()=>{eventsPage=1;loadEvents()},350)">
             </div>
           </div>
-          <div class="dj-card-body" style="padding:0;overflow:auto">
-            <table class="dj-table">
-              <thead><tr><th>Titre</th><th>Date</th><th>Organisateur</th><th>Statut</th><th>Capacité</th><th>Vedette</th><th>Changer statut</th><th>Actions</th></tr></thead>
-              <tbody id="eventsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="dj-card-body" style="padding:.75rem 1.25rem">
-            <div class="pagination" id="eventsPagination"></div>
-          </div>
+          <button class="btn-dj primary" onclick="openCreateEventModal()">
+            <i class="bi bi-plus-lg"></i> Nouvel événement
+          </button>
         </div>
+        <div class="events-grid" id="eventsGrid">
+          <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>
+        </div>
+        <div class="pagination" id="eventsPagination" style="padding:.5rem 0"></div>
       </section>
 
       <!-- ══ TICKETS ══ -->
@@ -239,38 +242,27 @@
 
       <!-- ══ ORGANISATEURS ══ -->
       <section class="section" id="sec-organizers">
-        <div class="dj-card">
-          <div class="dj-card-header">
-            <i class="bi bi-person-badge" style="color:#7c3aed"></i>
-            <h5>Organisateurs</h5>
-            <div class="ms-auto">
-              <div class="search-bar" style="display:inline-flex;align-items:center">
-                <i class="bi bi-search"></i>
-                <input id="orgsSearch" type="text" class="dj-input" placeholder="Nom, email…" style="width:180px">
-              </div>
-              <select id="orgsStatusFilter" class="dj-select" style="margin-left:.5rem">
-                <option value="">Tous</option>
-                <option value="1">Actifs</option>
-                <option value="0">Inactifs</option>
-              </select>
-              <button class="btn-dj primary" onclick="openModal('modalCreateOrg')" style="margin-left:.5rem">
-                <i class="bi bi-plus-lg"></i> Nouvel organisateur
-              </button>
+        <div class="section-toolbar">
+          <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+            <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
+              <i class="bi bi-search"></i>
+              <input id="orgsSearch" type="text" class="dj-input" placeholder="Nom, email…" style="width:180px"
+                oninput="clearTimeout(window._orgSearchT);window._orgSearchT=setTimeout(()=>{orgsPage=1;loadOrganizers()},350)">
             </div>
+            <select id="orgsStatusFilter" class="dj-select">
+              <option value="">Tous</option>
+              <option value="1">Actifs</option>
+              <option value="0">Inactifs</option>
+            </select>
           </div>
-          <div class="dj-card-body" style="padding:0;overflow:auto">
-            <table class="dj-table">
-              <thead><tr><th>Organisateur</th><th>Contact</th><th>Téléphone</th><th>Ville</th><th>Événements</th><th>Statut</th><th>Membre depuis</th><th>Actions</th></tr></thead>
-              <tbody id="orgsTbody"><tr><td colspan="8" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="dj-card-body" style="padding:.75rem 1.25rem">
-            <div class="pagination" id="orgsPagination"></div>
-          </div>
+          <button class="btn-dj primary" onclick="openModal('modalCreateOrg')">
+            <i class="bi bi-plus-lg"></i> Nouvel organisateur
+          </button>
         </div>
-
-        <!-- Grille de cartes organisateurs -->
-        <div class="grid2" id="orgsCardsGrid" style="margin-top:1.25rem"></div>
+        <div class="orgs-grid" id="orgsGrid">
+          <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>
+        </div>
+        <div class="pagination" id="orgsPagination" style="padding:.5rem 0"></div>
       </section>
 
       <!-- ══ SCAN LOGS ══ -->
@@ -305,6 +297,35 @@
         </div>
         <div class="grid2" id="categoriesGrid">
           <div class="empty-state"><i class="bi bi-tags"></i>Chargement...</div>
+        </div>
+      </section>
+
+      <!-- ══ SPEAKERS ══ -->
+      <section class="section" id="sec-speakers">
+        <div class="dj-card">
+          <div class="dj-card-header">
+            <i class="bi bi-mic" style="color:#8b5cf6"></i>
+            <h5>Speakers</h5>
+            <div class="ms-auto">
+              <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
+                <i class="bi bi-search"></i>
+                <input id="speakersSearch" type="text" class="dj-input" placeholder="Rechercher..." style="width:180px"
+                  oninput="clearTimeout(window._spSearchT);window._spSearchT=setTimeout(loadSpeakers,350)">
+              </div>
+              <button class="btn-dj primary" onclick="openCreateSpeakerModal()" style="margin-left:.5rem">
+                <i class="bi bi-plus-lg"></i> Nouveau speaker
+              </button>
+            </div>
+          </div>
+          <div class="dj-card-body" style="padding:0;overflow:auto">
+            <table class="dj-table">
+              <thead><tr><th>Photo</th><th>Nom</th><th>Poste / Entreprise</th><th>Organisateur</th><th>Sessions</th><th>Statut</th><th>Actions</th></tr></thead>
+              <tbody id="speakersTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dj-card-body" style="padding:.75rem 1.25rem">
+            <div class="pagination" id="speakersPagination"></div>
+          </div>
         </div>
       </section>
 
@@ -453,10 +474,17 @@
         </div>
         <div class="form-grp"><label>Bio / Description</label><textarea id="newOrgBio" class="dj-input" rows="2" style="resize:vertical;width:100%" placeholder="Présentation courte de l'organisateur…"></textarea></div>
         <div class="form-grp"><label>Mot de passe *</label><input id="newOrgPassword" type="password" class="dj-input" required minlength="8" placeholder="Min. 8 caractères"></div>
+        <div class="form-grp">
+          <label>Logo / Photo <span style="color:var(--dj-muted);font-size:.75rem">(JPG, PNG, WEBP — max 5 Mo)</span></label>
+          <input id="newOrgLogo" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'newOrgLogoPreview')">
+          <div id="newOrgLogoPreview" style="display:none;margin-top:.5rem;text-align:center">
+            <img style="height:90px;width:90px;object-fit:cover;border-radius:12px;border:2px solid var(--dj-border)">
+          </div>
+        </div>
       </div>
       <div class="dj-modal-footer">
         <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateOrg')">Annuler</button>
-        <button type="submit" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer</button>
+        <button type="submit" id="btnCreateOrg" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer</button>
       </div>
     </form>
   </div>
@@ -482,6 +510,16 @@
           <div class="form-grp"><label>Pays</label><input id="editOrgCountry" type="text" class="dj-input"></div>
         </div>
         <div class="form-grp"><label>Bio / Description</label><textarea id="editOrgBio" class="dj-input" rows="2" style="resize:vertical;width:100%"></textarea></div>
+        <div class="form-grp">
+          <label>Logo / Photo <span style="color:var(--dj-muted);font-size:.75rem">(laisser vide pour conserver)</span></label>
+          <div id="editOrgCurrentLogo" style="display:none;margin-bottom:.5rem;text-align:center">
+            <img id="editOrgCurrentLogoImg" style="height:80px;width:80px;object-fit:cover;border-radius:12px;border:2px solid var(--dj-border)">
+          </div>
+          <input id="editOrgLogo" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'editOrgLogoPreview')">
+          <div id="editOrgLogoPreview" style="display:none;margin-top:.5rem;text-align:center">
+            <img style="height:90px;width:90px;object-fit:cover;border-radius:12px;border:2px solid var(--dj-border)">
+          </div>
+        </div>
         <div class="grid2">
           <div class="form-grp">
             <label>Statut</label>
@@ -563,7 +601,13 @@
               <option value="cancelled">Annulé</option>
             </select>
           </div>
-          <div class="form-grp"><label>Nouvelle couverture</label><input id="editEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem"></div>
+          <div class="form-grp">
+            <label>Nouvelle couverture</label>
+            <input id="editEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'editEvPreview')">
+            <div id="editEvPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;max-height:140px;background:var(--dj-surface2)">
+              <img style="width:100%;height:140px;object-fit:cover;display:block">
+            </div>
+          </div>
         </div>
         <!-- Types de billets -->
         <div style="margin-top:.5rem;border-top:1px solid var(--dj-border);padding-top:.85rem">
@@ -658,7 +702,13 @@
               <option value="published">Publié</option>
             </select>
           </div>
-          <div class="form-grp"><label>Image de couverture</label><input id="newEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem"></div>
+          <div class="form-grp">
+            <label>Image de couverture</label>
+            <input id="newEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'newEvPreview')">
+            <div id="newEvPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;max-height:140px;background:var(--dj-surface2)">
+              <img style="width:100%;height:140px;object-fit:cover;display:block">
+            </div>
+          </div>
         </div>
       </div>
       <div class="dj-modal-footer">
@@ -669,7 +719,213 @@
   </div>
 </div>
 
-<script src="js/api.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<!-- ══════ MODAL AGENDA EVENT ══════ -->
+<div class="dj-modal-overlay" id="modalAgenda">
+  <div class="dj-modal dj-modal-xl">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-list-ul me-2"></i>Agenda — <span id="agendaEventTitle">—</span></h5>
+      <button class="btn-close-modal" onclick="closeModal('modalAgenda')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <span style="color:var(--dj-muted);font-size:.82rem" id="agendaSessionCount">0 session(s)</span>
+        <button class="btn-dj primary" onclick="openCreateSessionModal()">
+          <i class="bi bi-plus-lg"></i> Ajouter une session
+        </button>
+      </div>
+      <div id="agendaSessionsList">
+        <div class="empty-state"><i class="bi bi-calendar3"></i>Aucune session pour le moment</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL CREATE SPEAKER ══════ -->
+<div class="dj-modal-overlay" id="modalCreateSpeaker">
+  <div class="dj-modal" style="max-width:680px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-person-plus me-2"></i>Nouveau speaker</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalCreateSpeaker')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formCreateSpeaker">
+      <div class="dj-modal-body">
+        <div class="grid2">
+          <div class="form-grp"><label>Nom <span style="color:#f87171">*</span></label><input id="newSpName" type="text" class="dj-input" required></div>
+          <div class="form-grp"><label>Poste / Titre</label><input id="newSpJobTitle" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Entreprise / Organisation</label><input id="newSpCompany" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Email</label><input id="newSpEmail" type="email" class="dj-input"></div>
+          <div class="form-grp"><label>Téléphone</label><input id="newSpPhone" type="tel" class="dj-input"></div>
+          <div class="form-grp"><label>Statut</label>
+            <select id="newSpActive" class="dj-select"><option value="1">Actif</option><option value="0">Inactif</option></select>
+          </div>
+        </div>
+        <div class="form-grp"><label>Biographie</label><textarea id="newSpBio" class="dj-input" rows="3" placeholder="Parcours, expertise..."></textarea></div>
+        <div class="grid2" style="margin-bottom:.25rem">
+          <div class="form-grp"><label><i class="bi bi-twitter-x" style="font-size:.8rem"></i> Twitter/X</label><input id="newSpTwitter" type="text" class="dj-input" placeholder="@handle"></div>
+          <div class="form-grp"><label><i class="bi bi-linkedin" style="font-size:.8rem"></i> LinkedIn</label><input id="newSpLinkedin" type="text" class="dj-input" placeholder="URL du profil"></div>
+          <div class="form-grp"><label><i class="bi bi-instagram" style="font-size:.8rem"></i> Instagram</label><input id="newSpInstagram" type="text" class="dj-input" placeholder="@handle"></div>
+          <div class="form-grp"><label><i class="bi bi-globe" style="font-size:.8rem"></i> Site web</label><input id="newSpWebsite" type="text" class="dj-input" placeholder="https://..."></div>
+        </div>
+        <div class="form-grp">
+          <label>Photo</label>
+          <input id="newSpPhoto" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'newSpPreview')">
+          <div id="newSpPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;max-height:120px;background:var(--dj-surface2);text-align:center">
+            <img style="height:120px;object-fit:cover;display:inline-block">
+          </div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateSpeaker')">Annuler</button>
+        <button type="submit" id="btnCreateSpeaker" class="btn-dj primary"><i class="bi bi-person-plus"></i> Créer le speaker</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL EDIT SPEAKER ══════ -->
+<div class="dj-modal-overlay" id="modalEditSpeaker">
+  <div class="dj-modal" style="max-width:680px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-pencil me-2"></i>Modifier le speaker</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalEditSpeaker')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formEditSpeaker">
+      <input type="hidden" id="editSpId">
+      <div class="dj-modal-body">
+        <div class="grid2">
+          <div class="form-grp"><label>Nom <span style="color:#f87171">*</span></label><input id="editSpName" type="text" class="dj-input" required></div>
+          <div class="form-grp"><label>Poste / Titre</label><input id="editSpJobTitle" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Entreprise / Organisation</label><input id="editSpCompany" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Email</label><input id="editSpEmail" type="email" class="dj-input"></div>
+          <div class="form-grp"><label>Téléphone</label><input id="editSpPhone" type="tel" class="dj-input"></div>
+          <div class="form-grp"><label>Statut</label>
+            <select id="editSpActive" class="dj-select"><option value="1">Actif</option><option value="0">Inactif</option></select>
+          </div>
+        </div>
+        <div class="form-grp"><label>Biographie</label><textarea id="editSpBio" class="dj-input" rows="3"></textarea></div>
+        <div class="grid2" style="margin-bottom:.25rem">
+          <div class="form-grp"><label><i class="bi bi-twitter-x" style="font-size:.8rem"></i> Twitter/X</label><input id="editSpTwitter" type="text" class="dj-input" placeholder="@handle"></div>
+          <div class="form-grp"><label><i class="bi bi-linkedin" style="font-size:.8rem"></i> LinkedIn</label><input id="editSpLinkedin" type="text" class="dj-input" placeholder="URL du profil"></div>
+          <div class="form-grp"><label><i class="bi bi-instagram" style="font-size:.8rem"></i> Instagram</label><input id="editSpInstagram" type="text" class="dj-input" placeholder="@handle"></div>
+          <div class="form-grp"><label><i class="bi bi-globe" style="font-size:.8rem"></i> Site web</label><input id="editSpWebsite" type="text" class="dj-input" placeholder="https://..."></div>
+        </div>
+        <div class="form-grp">
+          <label>Photo <span style="color:var(--dj-muted);font-size:.78rem">(laisser vide pour conserver)</span></label>
+          <div id="editSpCurrentPhoto" style="display:none;margin-bottom:.5rem;border-radius:8px;overflow:hidden;max-height:100px;text-align:center">
+            <img id="editSpCurrentPhotoImg" style="height:100px;object-fit:cover;display:inline-block;border-radius:8px">
+          </div>
+          <input id="editSpPhoto" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'editSpPreview')">
+          <div id="editSpPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;max-height:120px;background:var(--dj-surface2);text-align:center">
+            <img style="height:120px;object-fit:cover;display:inline-block">
+          </div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalEditSpeaker')">Annuler</button>
+        <button type="submit" id="btnEditSpeaker" class="btn-dj primary"><i class="bi bi-check-lg"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL CREATE SESSION ══════ -->
+<div class="dj-modal-overlay" id="modalCreateSession">
+  <div class="dj-modal" style="max-width:720px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-calendar-plus me-2"></i>Nouvelle session</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalCreateSession')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formCreateSession">
+      <div class="dj-modal-body">
+        <div class="grid2">
+          <div class="form-grp" style="grid-column:1/-1"><label>Titre <span style="color:#f87171">*</span></label><input id="newSessTitle" type="text" class="dj-input" required></div>
+          <div class="form-grp"><label>Type</label>
+            <select id="newSessType" class="dj-select">
+              <option value="conference">Conférence</option>
+              <option value="keynote">Keynote</option>
+              <option value="workshop">Atelier</option>
+              <option value="panel">Table ronde</option>
+              <option value="networking">Networking</option>
+              <option value="break">Pause</option>
+              <option value="other">Autre</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Salle / Lieu</label><input id="newSessRoom" type="text" class="dj-input" placeholder="Salle A, Scène principale..."></div>
+          <div class="form-grp"><label>Début <span style="color:#f87171">*</span></label><input id="newSessStart" type="datetime-local" class="dj-input" required></div>
+          <div class="form-grp"><label>Fin</label><input id="newSessEnd" type="datetime-local" class="dj-input"></div>
+          <div class="form-grp"><label>Capacité <span style="color:var(--dj-muted);font-size:.78rem">(vide = illimitée)</span></label><input id="newSessCapacity" type="number" class="dj-input" min="1" placeholder="ex: 50"></div>
+          <div class="form-grp"><label>Ordre d'affichage</label><input id="newSessOrder" type="number" class="dj-input" value="0" min="0"></div>
+          <div class="form-grp"><label>Visibilité</label>
+            <select id="newSessVisible" class="dj-select"><option value="1">Visible</option><option value="0">Masquée</option></select>
+          </div>
+        </div>
+        <div class="form-grp"><label>Description</label><textarea id="newSessDesc" class="dj-input" rows="3" placeholder="Contenu, objectifs de la session..."></textarea></div>
+        <div class="form-grp"><label>Conditions d'accès</label><textarea id="newSessAccess" class="dj-input" rows="2" placeholder="ex: Réservé aux porteurs du pass VIP, inscription requise..."></textarea></div>
+        <div class="form-grp">
+          <label>Speakers <span style="color:var(--dj-muted);font-size:.78rem">(sélection multiple)</span></label>
+          <div id="newSessSpeakerPicker" class="speaker-picker">
+            <div style="color:var(--dj-muted);font-size:.82rem;padding:.5rem">Chargement des speakers...</div>
+          </div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalCreateSession')">Annuler</button>
+        <button type="submit" id="btnCreateSession" class="btn-dj primary"><i class="bi bi-plus-lg"></i> Créer la session</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════ MODAL EDIT SESSION ══════ -->
+<div class="dj-modal-overlay" id="modalEditSession">
+  <div class="dj-modal" style="max-width:720px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-pencil me-2"></i>Modifier la session</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalEditSession')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <form id="formEditSession">
+      <input type="hidden" id="editSessId">
+      <div class="dj-modal-body">
+        <div class="grid2">
+          <div class="form-grp" style="grid-column:1/-1"><label>Titre <span style="color:#f87171">*</span></label><input id="editSessTitle" type="text" class="dj-input" required></div>
+          <div class="form-grp"><label>Type</label>
+            <select id="editSessType" class="dj-select">
+              <option value="conference">Conférence</option>
+              <option value="keynote">Keynote</option>
+              <option value="workshop">Atelier</option>
+              <option value="panel">Table ronde</option>
+              <option value="networking">Networking</option>
+              <option value="break">Pause</option>
+              <option value="other">Autre</option>
+            </select>
+          </div>
+          <div class="form-grp"><label>Salle / Lieu</label><input id="editSessRoom" type="text" class="dj-input"></div>
+          <div class="form-grp"><label>Début <span style="color:#f87171">*</span></label><input id="editSessStart" type="datetime-local" class="dj-input" required></div>
+          <div class="form-grp"><label>Fin</label><input id="editSessEnd" type="datetime-local" class="dj-input"></div>
+          <div class="form-grp"><label>Capacité</label><input id="editSessCapacity" type="number" class="dj-input" min="1"></div>
+          <div class="form-grp"><label>Ordre d'affichage</label><input id="editSessOrder" type="number" class="dj-input" min="0"></div>
+          <div class="form-grp"><label>Visibilité</label>
+            <select id="editSessVisible" class="dj-select"><option value="1">Visible</option><option value="0">Masquée</option></select>
+          </div>
+        </div>
+        <div class="form-grp"><label>Description</label><textarea id="editSessDesc" class="dj-input" rows="3"></textarea></div>
+        <div class="form-grp"><label>Conditions d'accès</label><textarea id="editSessAccess" class="dj-input" rows="2"></textarea></div>
+        <div class="form-grp">
+          <label>Speakers</label>
+          <div id="editSessSpeakerPicker" class="speaker-picker">
+            <div style="color:var(--dj-muted);font-size:.82rem;padding:.5rem">Chargement des speakers...</div>
+          </div>
+        </div>
+      </div>
+      <div class="dj-modal-footer">
+        <button type="button" class="btn-dj ghost" onclick="closeModal('modalEditSession')">Annuler</button>
+        <button type="submit" id="btnEditSession" class="btn-dj primary"><i class="bi bi-check-lg"></i> Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js?v=8"></script>
+<script src="js/app.js?v=11"></script>
 </body>
 </html>
