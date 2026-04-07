@@ -10,7 +10,7 @@ const { pool }       = require('../config/database');
 
 // ── GET /api/admin/events/:id/sessions ───────────────────────
 exports.listSessions = async (req, res) => {
-  const [sessions] = await pool.execute(
+  const [sessions] = await pool.query(
     `SELECT s.id, s.title, s.description, s.room, s.type, s.start_time, s.end_time,
             s.capacity, s.registered, s.access_conditions, s.order_index, s.is_visible,
             s.created_at
@@ -25,7 +25,7 @@ exports.listSessions = async (req, res) => {
   let speakersMap = {};
   if (sessionIds.length) {
     const placeholders = sessionIds.map(() => '?').join(',');
-    const [spRows] = await pool.execute(
+    const [spRows] = await pool.query(
       `SELECT ss.session_id, ss.role, sp.id, sp.name, sp.photo, sp.job_title, sp.company
        FROM session_speakers ss
        JOIN speakers sp ON ss.speaker_id = sp.id
@@ -203,7 +203,7 @@ exports.listBookings = async (req, res) => {
     `SELECT COUNT(*) AS total FROM session_bookings WHERE session_id = ? AND status = 'confirmed'`,
     [req.params.id]
   );
-  const [rows] = await pool.execute(
+  const [rows] = await pool.query(
     `SELECT b.id, b.status, b.created_at, u.id AS user_id, u.name AS user_name, u.email
      FROM session_bookings b JOIN users u ON b.user_id = u.id
      WHERE b.session_id = ? AND b.status = 'confirmed'
@@ -225,7 +225,7 @@ exports.getEventAgenda = async (req, res) => {
   );
   if (!event) return res.status(404).json({ success: false, message: 'Événement introuvable.' });
 
-  const [sessions] = await pool.execute(
+  const [sessions] = await pool.query(
     `SELECT id, title, description, room, type, start_time, end_time,
             capacity, registered, access_conditions, order_index, is_visible
      FROM agenda_sessions
@@ -238,7 +238,7 @@ exports.getEventAgenda = async (req, res) => {
   let speakersMap = {};
   if (sessionIds.length) {
     const ph = sessionIds.map(() => '?').join(',');
-    const [spRows] = await pool.execute(
+    const [spRows] = await pool.query(
       `SELECT ss.session_id, ss.role, sp.id, sp.name, sp.photo, sp.job_title, sp.company, sp.bio, sp.social_links
        FROM session_speakers ss JOIN speakers sp ON ss.speaker_id = sp.id
        WHERE ss.session_id IN (${ph}) AND sp.is_active = 1`,
@@ -343,7 +343,7 @@ exports.getSpeakerProfile = async (req, res) => {
   );
   if (!speaker) return res.status(404).json({ success: false, message: 'Speaker introuvable.' });
 
-  const [sessions] = await pool.execute(
+  const [sessions] = await pool.query(
     `SELECT s.id, s.title, s.start_time, s.end_time, s.room, s.type, e.title AS event_title, e.id AS event_id, ss.role
      FROM session_speakers ss
      JOIN agenda_sessions s ON ss.session_id = s.id

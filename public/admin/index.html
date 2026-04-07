@@ -6,7 +6,7 @@
   <title>Djhina Admin</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="css/admin.css?v=10" rel="stylesheet">
+  <link href="css/admin.css?v=15" rel="stylesheet">
 </head>
 <body>
 <div class="app-layout">
@@ -123,36 +123,28 @@
 
       <!-- ══ USERS ══ -->
       <section class="section" id="sec-users">
-        <div class="dj-card">
-          <div class="dj-card-header">
-            <i class="bi bi-people" style="color:var(--dj-blue-lt)"></i>
-            <h5>Utilisateurs</h5>
-            <div class="ms-auto">
-              <div class="search-bar" style="display:inline-flex;align-items:center">
-                <i class="bi bi-search"></i>
-                <input id="usersSearch" type="text" class="dj-input" placeholder="Rechercher..." style="width:180px">
-              </div>
-              <select id="usersRoleFilter" class="dj-select" style="margin-left:.5rem">
-                <option value="">Tous les rôles</option>
-                <option value="user">Utilisateur</option>
-                <option value="organizer">Organisateur</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button class="btn-dj primary" onclick="openModal('modalCreateUser')" style="margin-left:.5rem">
-                <i class="bi bi-plus-lg"></i> Nouveau
-              </button>
+        <div class="section-toolbar">
+          <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+            <select id="usersRoleFilter" class="dj-select">
+              <option value="">Tous les rôles</option>
+              <option value="user">Utilisateur</option>
+              <option value="organizer">Organisateur</option>
+              <option value="admin">Admin</option>
+            </select>
+            <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
+              <i class="bi bi-search"></i>
+              <input id="usersSearch" type="text" class="dj-input" placeholder="Rechercher un utilisateur…" style="width:210px"
+                oninput="clearTimeout(window._usrSearchT);window._usrSearchT=setTimeout(()=>{usersPage=1;loadUsers()},350)">
             </div>
           </div>
-          <div class="dj-card-body" style="padding:0;overflow:auto">
-            <table class="dj-table">
-              <thead><tr><th>Utilisateur</th><th>Rôle</th><th>Téléphone</th><th>Pays</th><th>Statut</th><th>Dernière connexion</th><th>Actions</th></tr></thead>
-              <tbody id="usersTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="dj-card-body" style="padding:.75rem 1.25rem">
-            <div class="pagination" id="usersPagination"></div>
-          </div>
+          <button class="btn-dj primary" onclick="openModal('modalCreateUser')">
+            <i class="bi bi-plus-lg"></i> Nouvel utilisateur
+          </button>
         </div>
+        <div class="users-grid" id="usersGrid">
+          <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>
+        </div>
+        <div class="pagination" id="usersPagination" style="padding:.5rem 0"></div>
       </section>
 
       <!-- ══ EVENTS ══ -->
@@ -302,31 +294,22 @@
 
       <!-- ══ SPEAKERS ══ -->
       <section class="section" id="sec-speakers">
-        <div class="dj-card">
-          <div class="dj-card-header">
-            <i class="bi bi-mic" style="color:#8b5cf6"></i>
-            <h5>Speakers</h5>
-            <div class="ms-auto">
-              <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
-                <i class="bi bi-search"></i>
-                <input id="speakersSearch" type="text" class="dj-input" placeholder="Rechercher..." style="width:180px"
-                  oninput="clearTimeout(window._spSearchT);window._spSearchT=setTimeout(loadSpeakers,350)">
-              </div>
-              <button class="btn-dj primary" onclick="openCreateSpeakerModal()" style="margin-left:.5rem">
-                <i class="bi bi-plus-lg"></i> Nouveau speaker
-              </button>
+        <div class="section-toolbar">
+          <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+            <div class="search-bar" style="display:inline-flex;align-items:center;gap:.4rem">
+              <i class="bi bi-search"></i>
+              <input id="speakersSearch" type="text" class="dj-input" placeholder="Rechercher un speaker…" style="width:220px"
+                oninput="clearTimeout(window._spSearchT);window._spSearchT=setTimeout(loadSpeakers,350)">
             </div>
           </div>
-          <div class="dj-card-body" style="padding:0;overflow:auto">
-            <table class="dj-table">
-              <thead><tr><th>Photo</th><th>Nom</th><th>Poste / Entreprise</th><th>Organisateur</th><th>Sessions</th><th>Statut</th><th>Actions</th></tr></thead>
-              <tbody id="speakersTbody"><tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)">Chargement...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="dj-card-body" style="padding:.75rem 1.25rem">
-            <div class="pagination" id="speakersPagination"></div>
-          </div>
+          <button class="btn-dj primary" onclick="openCreateSpeakerModal()">
+            <i class="bi bi-plus-lg"></i> Nouveau speaker
+          </button>
         </div>
+        <div class="speakers-grid" id="speakersGrid">
+          <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>
+        </div>
+        <div class="pagination" id="speakersPagination" style="padding:.5rem 0"></div>
       </section>
 
     </main>
@@ -343,9 +326,21 @@
       <h5><i class="bi bi-pencil me-2"></i>Modifier l'utilisateur</h5>
       <button class="btn-close-modal" onclick="closeModal('modalEditUser')"><i class="bi bi-x-lg"></i></button>
     </div>
-    <form id="formEditUser">
+    <form id="formEditUser" enctype="multipart/form-data">
       <input type="hidden" id="editUserId">
       <div class="dj-modal-body">
+        <!-- Avatar picker -->
+        <div class="form-grp">
+          <label>Photo de profil</label>
+          <div class="avatar-picker-row">
+            <div class="avatar-picker-preview" id="editUserAvatarPreview"></div>
+            <label class="btn-dj ghost sm avatar-picker-btn" for="editUserAvatar">
+              <i class="bi bi-camera"></i> Changer la photo
+            </label>
+            <input type="file" id="editUserAvatar" name="avatar" accept="image/*" style="display:none"
+              onchange="previewAvatar(this,'editUserAvatarPreview')">
+          </div>
+        </div>
         <div class="form-grp"><label>Nom complet</label><input id="editUserName"  type="text"  class="dj-input" required></div>
         <div class="form-grp"><label>Email</label><input id="editUserEmail" type="email" class="dj-input" required></div>
         <div class="form-grp"><label>Téléphone</label><input id="editUserPhone" type="text" class="dj-input" placeholder="+235 66 00 00 00"></div>
@@ -558,6 +553,58 @@
     </div>
     <div class="dj-modal-footer" id="orgDetailFooter">
       <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewOrg')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW EVENT ══════ -->
+<div class="dj-modal-overlay" id="modalViewEvent">
+  <div class="dj-modal dj-modal-xl">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-calendar-event me-2"></i>Détail événement</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewEvent')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="eventDetailContent" style="padding:0">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewEvent')">Fermer</button>
+      <button type="button" class="btn-dj info" id="btnViewEventAgenda" onclick=""><i class="bi bi-list-ul"></i> Gérer l'agenda</button>
+      <button type="button" class="btn-dj primary" id="btnViewEventEdit" onclick=""><i class="bi bi-pencil"></i> Modifier</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW SPEAKER ══════ -->
+<div class="dj-modal-overlay" id="modalViewSpeaker">
+  <div class="dj-modal" style="max-width:520px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-mic me-2"></i>Profil speaker</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewSpeaker')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="speakerDetailContent">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer" id="speakerDetailFooter">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewSpeaker')">Fermer</button>
+      <button type="button" class="btn-dj primary" id="btnViewSpEdit"><i class="bi bi-pencil"></i> Modifier</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL VIEW USER ══════ -->
+<div class="dj-modal-overlay" id="modalViewUser">
+  <div class="dj-modal" style="max-width:480px">
+    <div class="dj-modal-header">
+      <h5><i class="bi bi-person me-2"></i>Fiche utilisateur</h5>
+      <button class="btn-close-modal" onclick="closeModal('modalViewUser')"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="dj-modal-body" id="userDetailContent">
+      <div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>
+    </div>
+    <div class="dj-modal-footer" id="userDetailFooter">
+      <button type="button" class="btn-dj ghost" onclick="closeModal('modalViewUser')">Fermer</button>
+      <button type="button" class="btn-dj primary" id="btnViewUserEdit"><i class="bi bi-pencil"></i> Modifier</button>
     </div>
   </div>
 </div>
@@ -862,7 +909,24 @@
         <div class="form-grp"><label>Description</label><textarea id="newSessDesc" class="dj-input" rows="3" placeholder="Contenu, objectifs de la session..."></textarea></div>
         <div class="form-grp"><label>Conditions d'accès</label><textarea id="newSessAccess" class="dj-input" rows="2" placeholder="ex: Réservé aux porteurs du pass VIP, inscription requise..."></textarea></div>
         <div class="form-grp">
-          <label>Speakers <span style="color:var(--dj-muted);font-size:.78rem">(sélection multiple)</span></label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+            <label style="margin:0">Speakers <span style="color:var(--dj-muted);font-size:.78rem">(sélection multiple)</span></label>
+            <button type="button" class="btn-dj ghost sm" onclick="toggleQuickSpeaker('newSessQuickSpeaker')">
+              <i class="bi bi-person-plus"></i> Nouveau speaker
+            </button>
+          </div>
+          <div id="newSessQuickSpeaker" class="quick-speaker-form" style="display:none">
+            <div class="grid2" style="gap:.5rem">
+              <div class="form-grp" style="margin:0"><input id="newSessSpName" type="text" class="dj-input" placeholder="Nom complet *"></div>
+              <div class="form-grp" style="margin:0"><input id="newSessSpTitle" type="text" class="dj-input" placeholder="Poste / Fonction"></div>
+              <div class="form-grp" style="margin:0"><input id="newSessSpCompany" type="text" class="dj-input" placeholder="Entreprise / Organisation"></div>
+              <div class="form-grp" style="margin:0">
+                <button type="button" class="btn-dj primary sm" style="width:100%" onclick="quickAddSpeaker('newSessSpeakerPicker','newSessSpName','newSessSpTitle','newSessSpCompany','newSessQuickSpeaker')">
+                  <i class="bi bi-plus-lg"></i> Créer et sélectionner
+                </button>
+              </div>
+            </div>
+          </div>
           <div id="newSessSpeakerPicker" class="speaker-picker">
             <div style="color:var(--dj-muted);font-size:.82rem;padding:.5rem">Chargement des speakers...</div>
           </div>
@@ -911,7 +975,24 @@
         <div class="form-grp"><label>Description</label><textarea id="editSessDesc" class="dj-input" rows="3"></textarea></div>
         <div class="form-grp"><label>Conditions d'accès</label><textarea id="editSessAccess" class="dj-input" rows="2"></textarea></div>
         <div class="form-grp">
-          <label>Speakers</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+            <label style="margin:0">Speakers</label>
+            <button type="button" class="btn-dj ghost sm" onclick="toggleQuickSpeaker('editSessQuickSpeaker')">
+              <i class="bi bi-person-plus"></i> Nouveau speaker
+            </button>
+          </div>
+          <div id="editSessQuickSpeaker" class="quick-speaker-form" style="display:none">
+            <div class="grid2" style="gap:.5rem">
+              <div class="form-grp" style="margin:0"><input id="editSessSpName" type="text" class="dj-input" placeholder="Nom complet *"></div>
+              <div class="form-grp" style="margin:0"><input id="editSessSpTitle" type="text" class="dj-input" placeholder="Poste / Fonction"></div>
+              <div class="form-grp" style="margin:0"><input id="editSessSpCompany" type="text" class="dj-input" placeholder="Entreprise / Organisation"></div>
+              <div class="form-grp" style="margin:0">
+                <button type="button" class="btn-dj primary sm" style="width:100%" onclick="quickAddSpeaker('editSessSpeakerPicker','editSessSpName','editSessSpTitle','editSessSpCompany','editSessQuickSpeaker')">
+                  <i class="bi bi-plus-lg"></i> Créer et sélectionner
+                </button>
+              </div>
+            </div>
+          </div>
           <div id="editSessSpeakerPicker" class="speaker-picker">
             <div style="color:var(--dj-muted);font-size:.82rem;padding:.5rem">Chargement des speakers...</div>
           </div>
@@ -926,6 +1007,6 @@
 </div>
 
 <script src="js/api.js?v=8"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/app.js?v=17"></script>
 </body>
 </html>

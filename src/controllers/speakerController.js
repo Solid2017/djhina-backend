@@ -37,7 +37,7 @@ exports.listSpeakers = async (req, res) => {
   const [[{ total }]] = await pool.execute(
     `SELECT COUNT(*) AS total FROM speakers s WHERE ${wc}`, params
   );
-  const [rows] = await pool.execute(
+  const [rows] = await pool.query(
     `SELECT s.id, s.organizer_id, s.name, s.bio, s.photo, s.job_title, s.company,
             s.email, s.phone, s.social_links, s.is_active, s.created_at,
             u.name AS organizer_name
@@ -49,10 +49,32 @@ exports.listSpeakers = async (req, res) => {
     params
   );
 
+  // Récupère les événements liés à chaque speaker (via sessions)
+  let eventsMap = {};
+  if (rows.length) {
+    const ids = rows.map(r => r.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const [evRows] = await pool.query(
+      `SELECT ss.speaker_id, e.id AS event_id, e.title AS event_title, e.date AS event_date
+       FROM session_speakers ss
+       JOIN agenda_sessions ag ON ag.id = ss.session_id
+       JOIN events e ON e.id = ag.event_id
+       WHERE ss.speaker_id IN (${placeholders})
+       GROUP BY ss.speaker_id, e.id
+       ORDER BY e.date ASC`,
+      ids
+    );
+    evRows.forEach(r => {
+      if (!eventsMap[r.speaker_id]) eventsMap[r.speaker_id] = [];
+      eventsMap[r.speaker_id].push({ id: r.event_id, title: r.event_title, date: r.event_date });
+    });
+  }
+
   const speakers = rows.map(r => ({
     ...r,
     social_links: typeof r.social_links === 'string' ? JSON.parse(r.social_links) : (r.social_links || {}),
     photo: r.photo ? `${req.protocol}://${req.get('host')}/uploads/speakers/${r.photo}` : null,
+    events: eventsMap[r.id] || [],
   }));
 
   return res.json({
@@ -98,7 +120,7 @@ exports.getSpeaker = async (req, res) => {
   if (!speaker) return res.status(404).json({ success: false, message: 'Speaker introuvable.' });
 
   // Sessions où ce speaker intervient
-  const [sessions] = await pool.execute(
+  const [sessions] = await pool.query(
     `SELECT as2.id, as2.title, as2.start_time, as2.room, as2.type, e.title AS event_title, ss.role
      FROM session_speakers ss
      JOIN agenda_sessions as2 ON ss.session_id = as2.id
@@ -187,7 +209,7 @@ exports.listMessages = async (req, res) => {
 
   const wc = where.join(' AND ');
   const [[{ total }]] = await pool.execute(`SELECT COUNT(*) AS total FROM speaker_messages m WHERE ${wc}`, params);
-  const [rows] = await pool.execute(
+  const [rows] = await pool.query(
     `SELECT m.*, u.name AS user_name, s.name AS speaker_name, e.title AS event_title
      FROM speaker_messages m
      JOIN users    u ON m.user_id    = u.id

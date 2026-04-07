@@ -146,53 +146,106 @@ async function loadDashboard() {
 let usersPage = 1, usersRole = '', usersSearch = '';
 
 async function loadUsers() {
-  const params = new URLSearchParams({ page: usersPage, limit: 15, ...(usersRole && { role: usersRole }), ...(usersSearch && { search: usersSearch }) });
+  const params = new URLSearchParams({ page: usersPage, limit: 18, ...(usersRole && { role: usersRole }), ...(usersSearch && { search: usersSearch }) });
   let data;
   try { data = await apiFetch(`/api/admin/users?${params}`); } catch { return; }
   if (!data?.success) return;
 
-  const tbody = document.getElementById('usersTbody');
-  tbody.innerHTML = data.data.map(u => `
-    <tr>
-      <td><div style="display:flex;align-items:center;gap:.6rem"><div class="sidebar-user" style="padding:0"><div class="avatar" style="width:30px;height:30px;font-size:.7rem">${avatar(u.name)}</div></div><div><div style="font-weight:600;font-size:.83rem">${u.name}</div><div style="color:var(--dj-muted);font-size:.72rem">${u.email}</div></div></div></td>
-      <td>${badgeStatus(u.role)}</td>
-      <td>${u.phone || '—'}</td>
-      <td>${u.country || '—'}</td>
-      <td>${u.is_active ? '<span style="color:#34d399"><i class="bi bi-check-circle"></i> Actif</span>' : '<span style="color:#f87171"><i class="bi bi-x-circle"></i> Inactif</span>'}</td>
-      <td>${fmtDateTime(u.last_login)}</td>
-      <td>
-        <button class="btn-dj ghost sm" onclick="openEditUser('${u.id}','${u.name}','${u.email}','${u.role}','${u.phone||''}','${u.is_active}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn-dj danger sm" onclick="deleteUser('${u.id}','${u.name}')"><i class="bi bi-trash"></i></button>
-      </td>
-    </tr>`).join('') || `<tr><td colspan="7"><div class="empty-state"><i class="bi bi-people"></i>Aucun utilisateur</div></td></tr>`;
+  const grid = document.getElementById('usersGrid');
+  if (!data.data.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="bi bi-people"></i>Aucun utilisateur trouvé</div>`;
+    renderPagination('usersPagination', data.meta, (p) => { usersPage = p; loadUsers(); });
+    return;
+  }
+
+  const ROLE_COLOR = { admin:'#7c3aed', organizer:'#0891b2', user:'#16a34a' };
+
+  grid.innerHTML = data.data.map(u => {
+    const roleColor = ROLE_COLOR[u.role] || '#64748b';
+    const avatarUrl = u.avatar ? `${API_BASE}${u.avatar}` : null;
+    const avatarHtml = avatarUrl
+      ? `<img src="${avatarUrl}" class="usr-card-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        + `<div class="usr-card-avatar-placeholder" style="background:${roleColor};display:none">${avatar(u.name)}</div>`
+      : `<div class="usr-card-avatar-placeholder" style="background:${roleColor}">${avatar(u.name)}</div>`;
+    const statusHtml = u.is_active
+      ? `<span class="usr-status-badge active"><i class="bi bi-check-circle-fill"></i> Actif</span>`
+      : `<span class="usr-status-badge inactive"><i class="bi bi-x-circle-fill"></i> Inactif</span>`;
+    return `
+    <div class="usr-card">
+      <div class="usr-card-header">
+        <div class="usr-card-avatar-wrap">${avatarHtml}</div>
+        <div class="usr-card-identity">
+          <div class="usr-card-name">${u.name}</div>
+          <div class="usr-card-email">${u.email}</div>
+        </div>
+        <span class="usr-role-badge" style="background:${roleColor}22;color:${roleColor};border:1px solid ${roleColor}44">${u.role}</span>
+      </div>
+      <div class="usr-card-meta">
+        ${u.phone ? `<span><i class="bi bi-telephone"></i>${u.phone}</span>` : ''}
+        ${u.country ? `<span><i class="bi bi-geo-alt"></i>${u.country}</span>` : ''}
+        <span><i class="bi bi-clock"></i>${fmtDateTime(u.last_login)}</span>
+      </div>
+      <div class="usr-card-footer">
+        ${statusHtml}
+        <div class="usr-card-actions">
+          <button class="btn-dj ghost sm" title="Voir fiche" onclick="viewUser('${u.id}')"><i class="bi bi-eye"></i></button>
+          <button class="btn-dj ghost sm" title="Modifier" onclick="openEditUser('${u.id}','${u.name}','${u.email}','${u.role}','${u.phone||''}','${u.is_active}','${u.avatar||''}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn-dj danger sm" title="Désactiver" onclick="deleteUser('${u.id}','${u.name}')"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 
   renderPagination('usersPagination', data.meta, (p) => { usersPage = p; loadUsers(); });
 }
 
-document.getElementById('usersSearch').addEventListener('input', function() { usersSearch = this.value; usersPage = 1; loadUsers(); });
 document.getElementById('usersRoleFilter').addEventListener('change', function() { usersRole = this.value; usersPage = 1; loadUsers(); });
 
-function openEditUser(id, name, email, role, phone, isActive) {
-  document.getElementById('editUserId').value    = id;
-  document.getElementById('editUserName').value  = name;
-  document.getElementById('editUserEmail').value = email;
-  document.getElementById('editUserRole').value  = role;
-  document.getElementById('editUserPhone').value = phone;
+function previewAvatar(input, previewId) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wrap = document.getElementById(previewId);
+    wrap.innerHTML = `<img src="${e.target.result}" class="usr-card-avatar" style="width:56px;height:56px">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function openEditUser(id, name, email, role, phone, isActive, avatarPath) {
+  document.getElementById('editUserId').value     = id;
+  document.getElementById('editUserName').value   = name;
+  document.getElementById('editUserEmail').value  = email;
+  document.getElementById('editUserRole').value   = role;
+  document.getElementById('editUserPhone').value  = phone;
   document.getElementById('editUserActive').value = isActive;
+  // Reset file input
+  const fileInput = document.getElementById('editUserAvatar');
+  fileInput.value = '';
+  // Show current avatar or placeholder
+  const preview = document.getElementById('editUserAvatarPreview');
+  const roleColor = { admin:'#7c3aed', organizer:'#0891b2', user:'#16a34a' }[role] || '#64748b';
+  if (avatarPath) {
+    const src = avatarPath.startsWith('http') ? avatarPath : `${API_BASE}${avatarPath}`;
+    preview.innerHTML = `<img src="${src}" class="usr-card-avatar" style="width:56px;height:56px" onerror="this.outerHTML='<div class=usr-card-avatar-placeholder style=background:${roleColor}>${avatar(name)}</div>'">`;
+  } else {
+    preview.innerHTML = `<div class="usr-card-avatar-placeholder" style="background:${roleColor}">${avatar(name)}</div>`;
+  }
   openModal('modalEditUser');
 }
 
 document.getElementById('formEditUser').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = document.getElementById('editUserId').value;
-  const body = {
-    name:      document.getElementById('editUserName').value,
-    email:     document.getElementById('editUserEmail').value,
-    role:      document.getElementById('editUserRole').value,
-    phone:     document.getElementById('editUserPhone').value,
-    is_active: parseInt(document.getElementById('editUserActive').value),
-  };
-  const data = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: JSON.stringify(body) });
+  const fd = new FormData();
+  fd.append('name',      document.getElementById('editUserName').value);
+  fd.append('email',     document.getElementById('editUserEmail').value);
+  fd.append('role',      document.getElementById('editUserRole').value);
+  fd.append('phone',     document.getElementById('editUserPhone').value);
+  fd.append('is_active', document.getElementById('editUserActive').value);
+  const file = document.getElementById('editUserAvatar').files[0];
+  if (file) fd.append('avatar', file);
+  const data = await apiFetch(`/api/admin/users/${id}`, { method:'PUT', body: fd });
   if (data?.success) { toast('Utilisateur mis à jour', 'success'); closeModal('modalEditUser'); loadUsers(); }
   else toast(data?.message || 'Erreur', 'error');
 });
@@ -293,6 +346,7 @@ async function loadEvents() {
           <option value="draft"      ${e.status==='draft'     ?'selected':''}>Brouillon</option>
           <option value="cancelled"  ${e.status==='cancelled' ?'selected':''}>Annulé</option>
         </select>
+        <button class="btn-dj ghost sm" title="Voir détails" onclick="viewEvent('${e.id}')"><i class="bi bi-eye"></i></button>
         <button class="btn-dj info sm" title="Agenda" onclick="openAgendaModal('${e.id}','${safeTitle}')"><i class="bi bi-list-ul"></i></button>
         <button class="btn-dj ghost sm" title="Modifier" onclick="openEditEvent('${e.id}')"><i class="bi bi-pencil"></i></button>
         <button class="btn-dj danger sm" title="Supprimer" onclick="deleteEvent('${e.id}','${safeTitle}')"><i class="bi bi-trash"></i></button>
@@ -885,6 +939,187 @@ async function viewOrg(id) {
     </button>`;
 }
 
+/* ══════════════════════ VIEW EVENT ══════════════════════ */
+const SESSION_TYPE_LABEL = { keynote:'Keynote', conference:'Conférence', workshop:'Atelier', panel:'Table ronde', networking:'Networking', break:'Pause', other:'Autre' };
+const SESSION_TYPE_COLOR = { keynote:'#7c3aed', conference:'#0891b2', workshop:'#16a34a', panel:'#d97706', networking:'#db2777', break:'#64748b', other:'#6366f1' };
+
+async function viewEvent(id) {
+  openModal('modalViewEvent');
+  const el = document.getElementById('eventDetailContent');
+  el.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
+
+  const [evRes, sessRes] = await Promise.all([
+    apiFetch(`/api/admin/events/${id}`),
+    apiFetch(`/api/admin/events/${id}/sessions`),
+  ]);
+  if (!evRes?.success) { el.innerHTML = '<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur de chargement</div>'; return; }
+
+  const e    = evRes.data;
+  const sess = sessRes?.data || [];
+  const coverSrc = e.cover_image ? (e.cover_image.startsWith('http') ? e.cover_image : `${API_BASE}${e.cover_image}`) : null;
+
+  // Sessions + speakers HTML
+  const sessHtml = sess.length ? sess.map(s => {
+    const tc = SESSION_TYPE_COLOR[s.type] || '#6366f1';
+    const tl = SESSION_TYPE_LABEL[s.type] || s.type;
+    const spHtml = (s.speakers || []).map(sp => {
+      const photoHtml = sp.photo
+        ? `<img src="${sp.photo}" class="detail-sp-photo" alt="${sp.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="detail-sp-photo" style="display:none;background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;font-weight:700;font-size:.6rem;align-items:center;justify-content:center">${avatar(sp.name)}</div>`
+        : `<div class="detail-sp-photo" style="background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;font-weight:700;font-size:.6rem;display:flex;align-items:center;justify-content:center">${avatar(sp.name)}</div>`;
+      return `<div class="detail-sp-chip">${photoHtml}<div><div style="font-weight:600;font-size:.75rem">${sp.name}</div>${sp.job_title?`<div style="font-size:.68rem;color:var(--dj-muted)">${sp.job_title}</div>`:''}</div></div>`;
+    }).join('');
+    return `
+    <div class="detail-session">
+      <div class="detail-session-head">
+        <span class="detail-sess-type" style="background:${tc}1a;color:${tc};border:1px solid ${tc}33">${tl}</span>
+        <strong style="font-size:.88rem;flex:1">${s.title}</strong>
+        <span style="font-size:.72rem;color:var(--dj-muted);white-space:nowrap">
+          <i class="bi bi-clock"></i> ${s.start_time ? new Date(s.start_time).toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}) : '—'}
+          ${s.end_time ? ' → '+new Date(s.end_time).toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'}) : ''}
+        </span>
+        ${s.room ? `<span style="font-size:.72rem;color:var(--dj-muted)"><i class="bi bi-geo-alt"></i> ${s.room}</span>` : ''}
+      </div>
+      ${s.description ? `<div style="font-size:.78rem;color:var(--dj-muted);margin:.35rem 0 .4rem;line-height:1.5">${s.description}</div>` : ''}
+      ${s.access_conditions ? `<div style="font-size:.72rem;color:#d97706;background:rgba(217,119,6,.08);border-radius:6px;padding:.25rem .55rem;margin-bottom:.4rem"><i class="bi bi-lock"></i> ${s.access_conditions}</div>` : ''}
+      ${spHtml ? `<div class="detail-sp-list">${spHtml}</div>` : '<div style="font-size:.72rem;color:var(--dj-muted);font-style:italic">Aucun speaker assigné</div>'}
+    </div>`;
+  }).join('') : `<div class="empty-state" style="padding:1.5rem"><i class="bi bi-calendar-x"></i> Aucune session créée pour cet événement</div>`;
+
+  const sc = EVENT_STATUS_COLOR[e.status] || '#6b7280';
+  el.innerHTML = `
+    ${coverSrc ? `<div style="height:180px;overflow:hidden;position:relative"><img src="${coverSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"><div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 50%,rgba(0,0,0,.55))"></div></div>` : ''}
+    <div style="padding:1.25rem 1.4rem">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:1rem">
+        <div>
+          <h4 style="margin:0;font-size:1.05rem;font-weight:800">${e.title}</h4>
+          ${e.subtitle ? `<div style="font-size:.82rem;color:var(--dj-muted);margin-top:.2rem">${e.subtitle}</div>` : ''}
+        </div>
+        <span style="background:${sc}1a;color:${sc};border:1px solid ${sc}33;font-size:.7rem;font-weight:700;padding:.2rem .6rem;border-radius:99px;white-space:nowrap">${EVENT_STATUS_LABEL[e.status]||e.status}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.5rem .9rem;font-size:.8rem;margin-bottom:1rem">
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Date</span><br><strong>${fmtDate(e.date)}</strong></div>
+        ${e.location ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Lieu</span><br><strong>${e.location}${e.city?', '+e.city:''}</strong></div>` : ''}
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Organisateur</span><br><strong>${e.organizer_name||'—'}</strong></div>
+        ${e.capacity ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Capacité</span><br><strong>${fmtNum(e.registered)} / ${fmtNum(e.capacity)}</strong></div>` : ''}
+      </div>
+      ${e.description ? `<div style="font-size:.82rem;color:var(--dj-muted);margin-bottom:1rem;line-height:1.6;border-top:1px solid var(--dj-border);padding-top:.85rem">${e.description}</div>` : ''}
+      <div style="border-top:1px solid var(--dj-border);padding-top:.85rem">
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+          <i class="bi bi-list-ul" style="color:var(--dj-blue)"></i> Programme (${sess.length} session${sess.length!==1?'s':''})
+        </div>
+        <div class="detail-sessions-list">${sessHtml}</div>
+      </div>
+    </div>`;
+
+  const safeTitle = (e.title||'').replace(/'/g,"\\'");
+  document.getElementById('btnViewEventAgenda').onclick = () => { closeModal('modalViewEvent'); openAgendaModal(id, safeTitle); };
+  document.getElementById('btnViewEventEdit').onclick   = () => { closeModal('modalViewEvent'); openEditEvent(id); };
+}
+
+/* ══════════════════════ VIEW SPEAKER ══════════════════════ */
+async function viewSpeaker(id) {
+  openModal('modalViewSpeaker');
+  document.getElementById('speakerDetailContent').innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
+
+  const data = await apiFetch(`/api/admin/speakers/${id}`);
+  if (!data?.success) { document.getElementById('speakerDetailContent').innerHTML = '<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur</div>'; return; }
+  const s = data.data;
+  const sl = (typeof s.social_links === 'string' ? JSON.parse(s.social_links) : s.social_links) || {};
+  const photoHtml = s.photo
+    ? `<img src="${s.photo}" style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:3px solid var(--dj-border)" alt="${s.name}">`
+    : `<div style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.8rem">${avatar(s.name)}</div>`;
+
+  const socialsHtml = [
+    sl.twitter   ? `<a href="${sl.twitter}"   target="_blank" class="sp-social-link" style="font-size:1.1rem" title="Twitter"><i class="bi bi-twitter-x"></i></a>` : '',
+    sl.linkedin  ? `<a href="${sl.linkedin}"  target="_blank" class="sp-social-link" style="font-size:1.1rem" title="LinkedIn"><i class="bi bi-linkedin"></i></a>` : '',
+    sl.instagram ? `<a href="${sl.instagram}" target="_blank" class="sp-social-link" style="font-size:1.1rem" title="Instagram"><i class="bi bi-instagram"></i></a>` : '',
+    sl.website   ? `<a href="${sl.website}"   target="_blank" class="sp-social-link" style="font-size:1.1rem" title="Site web"><i class="bi bi-globe"></i></a>` : '',
+  ].filter(Boolean).join('');
+
+  // Événements déduits des sessions
+  const eventsUniq = [];
+  const seenEv = new Set();
+  (s.sessions||[]).forEach(sess => {
+    if (sess.event_title && !seenEv.has(sess.event_title)) {
+      seenEv.add(sess.event_title);
+      eventsUniq.push({ title: sess.event_title, session: sess.title, type: sess.type });
+    }
+  });
+  const evBadges = eventsUniq.map(e => `
+    <div class="sp-event-badge" style="flex-direction:column;align-items:flex-start;gap:.1rem;padding:.35rem .65rem">
+      <span style="display:flex;align-items:center;gap:.35rem"><i class="bi bi-calendar-event"></i><strong>${e.title}</strong></span>
+      <span style="font-size:.67rem;color:var(--dj-muted);padding-left:1.3rem">${SESSION_TYPE_LABEL[e.type]||e.type} — ${e.session}</span>
+    </div>`).join('');
+
+  document.getElementById('speakerDetailContent').innerHTML = `
+    <div style="text-align:center;padding:1.5rem 1.25rem 1rem">
+      ${photoHtml}
+      <div style="font-size:1.1rem;font-weight:800;margin-top:.75rem">${s.name}
+        ${s.is_active ? '<i class="bi bi-check-circle-fill" style="color:#16a34a;font-size:.8rem;margin-left:.3rem"></i>' : ''}
+      </div>
+      ${s.job_title ? `<div style="font-size:.82rem;color:var(--dj-muted);margin-top:.15rem">${s.job_title}${s.company?` <em>— ${s.company}</em>`:''}</div>` : ''}
+      ${socialsHtml ? `<div style="display:flex;justify-content:center;gap:.75rem;margin-top:.75rem">${socialsHtml}</div>` : ''}
+    </div>
+    <div style="padding:0 1.25rem 1.25rem;display:flex;flex-direction:column;gap:.9rem;border-top:1px solid var(--dj-border);padding-top:.9rem">
+      ${s.bio ? `<div><div style="font-size:.68rem;color:var(--dj-muted);text-transform:uppercase;font-weight:700;margin-bottom:.3rem">Biographie</div><div style="font-size:.82rem;line-height:1.6;color:var(--dj-muted)">${s.bio}</div></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .9rem;font-size:.8rem">
+        ${s.email ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Email</span><br><a href="mailto:${s.email}" style="color:var(--dj-blue)">${s.email}</a></div>` : ''}
+        ${s.phone ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Téléphone</span><br>${s.phone}</div>` : ''}
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Organisateur</span><br>${s.organizer_name||'—'}</div>
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Depuis</span><br>${fmtDate(s.created_at)}</div>
+      </div>
+      ${evBadges ? `<div><div style="font-size:.68rem;color:var(--dj-muted);text-transform:uppercase;font-weight:700;margin-bottom:.4rem">Événements associés</div><div style="display:flex;flex-direction:column;gap:.3rem">${evBadges}</div></div>` : ''}
+    </div>`;
+
+  document.getElementById('btnViewSpEdit').onclick = () => { closeModal('modalViewSpeaker'); openEditSpeakerModal(id); };
+}
+
+/* ══════════════════════ VIEW USER ══════════════════════ */
+async function viewUser(id) {
+  openModal('modalViewUser');
+  document.getElementById('userDetailContent').innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
+
+  const data = await apiFetch(`/api/admin/users/${id}`);
+  if (!data?.success) { document.getElementById('userDetailContent').innerHTML = '<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur</div>'; return; }
+  const u = data.data;
+  const ROLE_COLOR = { admin:'#7c3aed', organizer:'#0891b2', user:'#16a34a' };
+  const rc = ROLE_COLOR[u.role] || '#64748b';
+  const avatarUrl = u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${API_BASE}${u.avatar}`) : null;
+  const photoHtml = avatarUrl
+    ? `<img src="${avatarUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--dj-border)" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      + `<div style="width:80px;height:80px;border-radius:50%;background:${rc};display:none;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.6rem">${avatar(u.name)}</div>`
+    : `<div style="width:80px;height:80px;border-radius:50%;background:${rc};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.6rem">${avatar(u.name)}</div>`;
+
+  document.getElementById('userDetailContent').innerHTML = `
+    <div style="text-align:center;padding:1.5rem 1.25rem 1rem">
+      <div style="display:inline-flex">${photoHtml}</div>
+      <div style="font-size:1.05rem;font-weight:800;margin-top:.7rem">${u.name}</div>
+      <div style="font-size:.78rem;color:var(--dj-muted)">${u.email}</div>
+      <div style="display:flex;justify-content:center;gap:.5rem;margin-top:.6rem">
+        <span style="background:${rc}1a;color:${rc};border:1px solid ${rc}33;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:99px;text-transform:capitalize">${u.role}</span>
+        ${u.is_active
+          ? '<span style="background:rgba(22,163,74,.1);color:#16a34a;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:99px;border:1px solid rgba(22,163,74,.25)">✓ Actif</span>'
+          : '<span style="background:rgba(220,38,38,.1);color:#dc2626;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:99px;border:1px solid rgba(220,38,38,.2)">Inactif</span>'}
+      </div>
+    </div>
+    <div style="padding:0 1.25rem 1.25rem;border-top:1px solid var(--dj-border);padding-top:.9rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;font-size:.8rem">
+        ${u.phone    ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Téléphone</span><br>${u.phone}</div>` : ''}
+        ${u.country  ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Pays</span><br>${u.country}</div>` : ''}
+        ${u.city     ? `<div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Ville</span><br>${u.city}</div>` : ''}
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Inscrit le</span><br>${fmtDate(u.created_at)}</div>
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Dernière connexion</span><br>${fmtDateTime(u.last_login)}</div>
+        <div><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Vérifié</span><br>${u.is_verified ? '<span style="color:#16a34a">✓ Oui</span>' : '<span style="color:var(--dj-muted)">Non</span>'}</div>
+      </div>
+      ${u.bio ? `<div style="margin-top:.85rem"><span style="color:var(--dj-muted);font-size:.68rem;text-transform:uppercase">Bio</span><div style="font-size:.8rem;color:var(--dj-muted);margin-top:.25rem;line-height:1.6">${u.bio}</div></div>` : ''}
+    </div>`;
+
+  document.getElementById('btnViewUserEdit').onclick = () => {
+    closeModal('modalViewUser');
+    openEditUser(u.id, u.name, u.email, u.role, u.phone||'', u.is_active, u.avatar||'');
+  };
+}
+
 /* ── Ouvrir modale d'édition ── */
 function openEditOrg(o) {
   document.getElementById('editOrgId').value      = o.id;
@@ -1089,35 +1324,65 @@ let _spPage = 1;
 async function loadSpeakers(page = 1) {
   _spPage = page;
   const search = document.getElementById('speakersSearch')?.value?.trim() || '';
-  const params = new URLSearchParams({ page, limit: 20, ...(search && { search }) });
-  const tbody = document.getElementById('speakersTbody');
-  tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split"></i> Chargement…</td></tr>`;
+  const params = new URLSearchParams({ page, limit: 16, ...(search && { search }) });
+  const grid = document.getElementById('speakersGrid');
+  grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i> Chargement…</div>`;
 
   const data = await apiFetch(`/api/admin/speakers?${params}`);
   if (!data?.success) {
-    tbody.innerHTML = `<tr><td colspan="7" style="color:#f87171;padding:1.5rem;text-align:center"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement</td></tr>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:#f87171"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement</div>`;
+    return;
+  }
+  if (!data.data.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="bi bi-mic-mute"></i>Aucun speaker trouvé</div>`;
+    renderPagination('speakersPagination', data.meta, loadSpeakers);
     return;
   }
 
-  tbody.innerHTML = data.data.map(s => `
-    <tr>
-      <td><div class="sp-avatar">${s.photo ? `<img src="${s.photo}" alt="${s.name}">` : avatar(s.name)}</div></td>
-      <td>
-        <strong style="color:var(--dj-text)">${s.name}</strong>
-        ${s.email ? `<br><span style="font-size:.75rem;color:var(--dj-muted)">${s.email}</span>` : ''}
-      </td>
-      <td>
-        ${s.job_title ? `<span style="font-size:.82rem">${s.job_title}</span>` : ''}
-        ${s.company ? `<br><span style="font-size:.75rem;color:var(--dj-muted)">${s.company}</span>` : ''}
-      </td>
-      <td><span style="font-size:.82rem">${s.organizer_name || '—'}</span></td>
-      <td><span class="badge" style="background:rgba(99,102,241,.15);color:#6366f1">Sessions à venir</span></td>
-      <td>${s.is_active ? '<span class="badge green">Actif</span>' : '<span class="badge" style="background:rgba(239,68,68,.15);color:#f87171">Inactif</span>'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn-dj ghost sm" title="Modifier" onclick="openEditSpeakerModal('${s.id}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn-dj danger sm" title="Supprimer" onclick="deleteSpeaker('${s.id}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
-      </td>
-    </tr>`).join('') || `<tr><td colspan="7"><div class="empty-state"><i class="bi bi-mic-mute"></i>Aucun speaker</div></td></tr>`;
+  grid.innerHTML = data.data.map(s => {
+    const photoHtml = s.photo
+      ? `<img src="${s.photo}" class="sp-card-photo" alt="${s.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        + `<div class="sp-card-photo-placeholder" style="display:none">${avatar(s.name)}</div>`
+      : `<div class="sp-card-photo-placeholder">${avatar(s.name)}</div>`;
+
+    const statusBadge = s.is_active
+      ? `<span class="sp-status-badge active"><i class="bi bi-check-circle-fill"></i> Actif</span>`
+      : `<span class="sp-status-badge inactive"><i class="bi bi-x-circle-fill"></i> Inactif</span>`;
+
+    const eventsHtml = (s.events || []).length
+      ? (s.events || []).map(e => `<span class="sp-event-badge" title="${e.title}"><i class="bi bi-calendar-event"></i> ${e.title}</span>`).join('')
+      : `<span class="sp-event-badge empty"><i class="bi bi-calendar-x"></i> Aucun événement</span>`;
+
+    const sl = s.social_links || {};
+    const socialsHtml = [
+      sl.twitter    ? `<a href="${sl.twitter}"    target="_blank" class="sp-social-link" title="Twitter"><i class="bi bi-twitter-x"></i></a>` : '',
+      sl.linkedin   ? `<a href="${sl.linkedin}"   target="_blank" class="sp-social-link" title="LinkedIn"><i class="bi bi-linkedin"></i></a>` : '',
+      sl.instagram  ? `<a href="${sl.instagram}"  target="_blank" class="sp-social-link" title="Instagram"><i class="bi bi-instagram"></i></a>` : '',
+      sl.website    ? `<a href="${sl.website}"    target="_blank" class="sp-social-link" title="Site web"><i class="bi bi-globe"></i></a>` : '',
+    ].filter(Boolean).join('');
+
+    return `
+    <div class="sp-card">
+      <div class="sp-card-top">
+        <div class="sp-card-photo-wrap">${photoHtml}</div>
+        ${statusBadge}
+      </div>
+      <div class="sp-card-body">
+        <div class="sp-card-name">${s.name}</div>
+        ${s.job_title ? `<div class="sp-card-title">${s.job_title}${s.company ? ` <span class="sp-card-company">— ${s.company}</span>` : ''}</div>` : ''}
+        ${s.email ? `<div class="sp-card-email"><i class="bi bi-envelope"></i> ${s.email}</div>` : ''}
+      </div>
+      <div class="sp-card-events">${eventsHtml}</div>
+      <div class="sp-card-footer">
+        <div class="sp-card-socials">${socialsHtml || '<span style="font-size:.72rem;color:var(--dj-muted)">—</span>'}</div>
+        <div style="display:flex;gap:.35rem">
+          <button class="btn-dj ghost sm" title="Voir profil" onclick="viewSpeaker('${s.id}')"><i class="bi bi-eye"></i></button>
+          <button class="btn-dj ghost sm" title="Modifier" onclick="openEditSpeakerModal('${s.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn-dj danger sm" title="Supprimer" onclick="deleteSpeaker('${s.id}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 
   renderPagination('speakersPagination', data.meta, loadSpeakers);
 }
@@ -1330,6 +1595,39 @@ async function loadSpeakerPickerInto(containerId, selectedIds = []) {
     </label>`;
   }).join('');
   // Remettre les rôles existants si édition
+}
+
+function toggleQuickSpeaker(formId) {
+  const el = document.getElementById(formId);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function quickAddSpeaker(pickerId, nameId, titleId, companyId, formId) {
+  const name = document.getElementById(nameId).value.trim();
+  if (!name) { toast('Le nom du speaker est requis', 'error'); return; }
+  const fd = new FormData();
+  fd.append('name', name);
+  const title   = document.getElementById(titleId).value.trim();
+  const company = document.getElementById(companyId).value.trim();
+  if (title)   fd.append('job_title', title);
+  if (company) fd.append('company', company);
+
+  const data = await apiFetch('/api/admin/speakers', { method: 'POST', body: fd });
+  if (!data?.success) { toast(data?.message || 'Erreur lors de la création', 'error'); return; }
+
+  const sp = data.data;
+  // Ajouter au cache global
+  _allSpeakers.push(sp);
+  // Récupérer les sélections actuelles avant de re-rendre
+  const currentChecked = Array.from(document.querySelectorAll(`#${pickerId} input[type=checkbox]:checked`)).map(i => i.value);
+  // Re-rendre le picker avec le nouveau speaker sélectionné
+  await loadSpeakerPickerInto(pickerId, [...currentChecked, sp.id]);
+  // Vider et fermer le mini-form
+  document.getElementById(nameId).value    = '';
+  document.getElementById(titleId).value   = '';
+  document.getElementById(companyId).value = '';
+  document.getElementById(formId).style.display = 'none';
+  toast(`${sp.name} ajouté et sélectionné`, 'success');
 }
 
 function getPickedSpeakers(containerId) {
