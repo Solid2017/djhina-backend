@@ -10,7 +10,7 @@ USE djhina_db;
 -- ───────────────────────────────────────────────────────────────
 -- UTILISATEURS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id          VARCHAR(36)     PRIMARY KEY DEFAULT (UUID()),
   name        VARCHAR(100)    NOT NULL,
   email       VARCHAR(150)    UNIQUE NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE users (
 -- ───────────────────────────────────────────────────────────────
 -- CATÉGORIES D'ÉVÉNEMENTS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id    VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   slug  VARCHAR(50)   UNIQUE NOT NULL,
   label VARCHAR(80)   NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE categories (
 -- ───────────────────────────────────────────────────────────────
 -- ÉVÉNEMENTS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE events (
+CREATE TABLE IF NOT EXISTS events (
   id              VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   organizer_id    VARCHAR(36)   NOT NULL,
   category_id     VARCHAR(36),
@@ -85,7 +85,7 @@ CREATE TABLE events (
 -- ───────────────────────────────────────────────────────────────
 -- TYPES DE BILLETS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE ticket_types (
+CREATE TABLE IF NOT EXISTS ticket_types (
   id          VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   event_id    VARCHAR(36)   NOT NULL,
   name        VARCHAR(100)  NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE ticket_types (
 -- ───────────────────────────────────────────────────────────────
 -- PAIEMENTS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id              VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   user_id         VARCHAR(36)   NOT NULL,
   event_id        VARCHAR(36)   NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE payments (
 -- ───────────────────────────────────────────────────────────────
 -- BILLETS ÉMIS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE tickets (
+CREATE TABLE IF NOT EXISTS tickets (
   id              VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   ticket_number   VARCHAR(30)   UNIQUE NOT NULL,
   payment_id      VARCHAR(36),
@@ -169,7 +169,7 @@ CREATE TABLE tickets (
 -- ───────────────────────────────────────────────────────────────
 -- LOGS DE SCAN QR
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE scan_logs (
+CREATE TABLE IF NOT EXISTS scan_logs (
   id          VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   ticket_id   VARCHAR(36),
   scanned_by  VARCHAR(36)   NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE scan_logs (
 -- ───────────────────────────────────────────────────────────────
 -- INTERACTIONS ÉVÉNEMENTS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE event_likes (
+CREATE TABLE IF NOT EXISTS event_likes (
   user_id   VARCHAR(36) NOT NULL,
   event_id  VARCHAR(36) NOT NULL,
   created_at DATETIME   DEFAULT CURRENT_TIMESTAMP,
@@ -197,7 +197,7 @@ CREATE TABLE event_likes (
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE event_saves (
+CREATE TABLE IF NOT EXISTS event_saves (
   user_id   VARCHAR(36) NOT NULL,
   event_id  VARCHAR(36) NOT NULL,
   created_at DATETIME   DEFAULT CURRENT_TIMESTAMP,
@@ -209,7 +209,7 @@ CREATE TABLE event_saves (
 -- ───────────────────────────────────────────────────────────────
 -- COMMENTAIRES
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE comments (
+CREATE TABLE IF NOT EXISTS comments (
   id          VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   event_id    VARCHAR(36)   NOT NULL,
   user_id     VARCHAR(36)   NOT NULL,
@@ -228,7 +228,7 @@ CREATE TABLE comments (
 -- ───────────────────────────────────────────────────────────────
 -- NOTIFICATIONS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id          VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   user_id     VARCHAR(36)   NOT NULL,
   type        ENUM('ticket','event','payment','system','reminder') NOT NULL,
@@ -245,7 +245,7 @@ CREATE TABLE notifications (
 -- ───────────────────────────────────────────────────────────────
 -- REFRESH TOKENS
 -- ───────────────────────────────────────────────────────────────
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
   id          VARCHAR(36)   PRIMARY KEY DEFAULT (UUID()),
   user_id     VARCHAR(36)   NOT NULL,
   token       VARCHAR(500)  NOT NULL,
