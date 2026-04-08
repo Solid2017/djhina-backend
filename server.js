@@ -10,6 +10,9 @@ const { testConnection } = require('./src/config/database');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Trust proxy (Railway / load balancer) ─────────────────────
+app.set('trust proxy', 1);
+
 // ── Sécurité ─────────────────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
