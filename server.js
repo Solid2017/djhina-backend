@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('express-async-errors'); // Catch async errors automatically
 
 const express     = require('express');
 const cors        = require('cors');
