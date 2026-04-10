@@ -4,9 +4,6 @@
 --  Version 1.0 — djhina.igotech.tech
 -- ═══════════════════════════════════════════════════════════════
 
-CREATE DATABASE IF NOT EXISTS djhina_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE djhina_db;
-
 -- ───────────────────────────────────────────────────────────────
 -- UTILISATEURS
 -- ───────────────────────────────────────────────────────────────
@@ -258,7 +255,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 -- ───────────────────────────────────────────────────────────────
 -- VUES UTILES
 -- ───────────────────────────────────────────────────────────────
-CREATE VIEW v_events_public AS
+CREATE OR REPLACE VIEW v_events_public AS
 SELECT
   e.*,
   u.name        AS organizer_name,
@@ -274,7 +271,7 @@ JOIN users      u ON e.organizer_id = u.id
 LEFT JOIN categories c ON e.category_id = c.id
 WHERE e.status = 'published';
 
-CREATE VIEW v_tickets_detail AS
+CREATE OR REPLACE VIEW v_tickets_detail AS
 SELECT
   t.*,
   e.title      AS event_title,
