@@ -57,8 +57,7 @@ async function run() {
       social_links JSON,
       is_active    TINYINT(1)  NOT NULL DEFAULT 1,
       created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_speakers_organizer FOREIGN KEY (organizer_id) REFERENCES users(id) ON DELETE CASCADE
+      updated_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
     `CREATE TABLE IF NOT EXISTS agenda_sessions (
@@ -76,8 +75,7 @@ async function run() {
       order_index       INT           NOT NULL DEFAULT 0,
       is_visible        TINYINT(1)   NOT NULL DEFAULT 1,
       created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_sessions_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
     `CREATE TABLE IF NOT EXISTS session_speakers (
@@ -85,9 +83,7 @@ async function run() {
       session_id VARCHAR(36) NOT NULL,
       speaker_id VARCHAR(36) NOT NULL,
       role       ENUM('speaker','moderator','panelist','facilitator') NOT NULL DEFAULT 'speaker',
-      UNIQUE KEY uniq_ss (session_id, speaker_id),
-      CONSTRAINT fk_ss_session FOREIGN KEY (session_id) REFERENCES agenda_sessions(id) ON DELETE CASCADE,
-      CONSTRAINT fk_ss_speaker FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE CASCADE
+      UNIQUE KEY uniq_ss (session_id, speaker_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
     `CREATE TABLE IF NOT EXISTS session_bookings (
@@ -96,9 +92,7 @@ async function run() {
       user_id    VARCHAR(36) NOT NULL,
       status     ENUM('confirmed','cancelled') NOT NULL DEFAULT 'confirmed',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY uniq_sb (session_id, user_id),
-      CONSTRAINT fk_sb_session FOREIGN KEY (session_id) REFERENCES agenda_sessions(id) ON DELETE CASCADE,
-      CONSTRAINT fk_sb_user   FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE
+      UNIQUE KEY uniq_sb (session_id, user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
     `CREATE TABLE IF NOT EXISTS speaker_messages (
@@ -109,10 +103,7 @@ async function run() {
       content    TEXT        NOT NULL,
       reply      TEXT,
       replied_at DATETIME,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_sm_speaker FOREIGN KEY (speaker_id) REFERENCES speakers(id) ON DELETE CASCADE,
-      CONSTRAINT fk_sm_user    FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
-      CONSTRAINT fk_sm_event   FOREIGN KEY (event_id)   REFERENCES events(id) ON DELETE SET NULL
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ];
   for (const q of agendaQueries) await conn.query(q);
@@ -120,6 +111,11 @@ async function run() {
   console.log('✓ Tables agenda créées');
 
   // 4. Seed SQL
+  await conn.query('SET FOREIGN_KEY_CHECKS=0');
+  await conn.query('TRUNCATE TABLE categories');
+  await conn.query('TRUNCATE TABLE users');
+  await conn.query('TRUNCATE TABLE events');
+  await conn.query('SET FOREIGN_KEY_CHECKS=1');
   const seed = fs.readFileSync(path.join(__dirname, '../database/seed.sql'), 'utf8');
   await conn.query(seed);
   console.log('✓ Seed SQL appliqué');

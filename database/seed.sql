@@ -1,8 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════
 --  DJHINA — DONNÉES INITIALES
 -- ═══════════════════════════════════════════════════════════════
-USE djhina_db;
-
 -- Catégories
 INSERT INTO categories (id, slug, label, icon, color, sort_order) VALUES
   (UUID(), 'festival',    'Festival',    'sparkles',     '#F59E0B', 1),
