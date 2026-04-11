@@ -102,6 +102,8 @@ app.get('/admin', (req, res) => res.redirect('/admin/login.html'));
 app.use('/api/auth',          authLimiter, require('./src/routes/auth'));
 app.use('/api/events',                     require('./src/routes/events'));
 app.use('/api/tickets',                    require('./src/routes/tickets'));
+app.use('/api/payments',                   require('./src/routes/payments'));
+app.use('/api/privacy',                    require('./src/routes/privacy'));
 app.use('/api/notifications',              require('./src/routes/notifications'));
 app.use('/api/admin',                      require('./src/routes/admin'));
 app.use('/api/organizer',                  require('./src/routes/organizer'));
@@ -193,8 +195,28 @@ app.use((err, req, res, next) => {
 });
 
 // ── Démarrage ─────────────────────────────────────────────────
+async function runPrivacyMigration() {
+  const { pool } = require('./src/config/database');
+  const cols = [
+    ['privacy_profile_public', 'TINYINT(1) DEFAULT 1'],
+    ['privacy_show_activity',  'TINYINT(1) DEFAULT 1'],
+    ['privacy_show_tickets',   'TINYINT(1) DEFAULT 0'],
+    ['data_share_analytics',   'TINYINT(1) DEFAULT 1'],
+    ['biometric_enabled',      'TINYINT(1) DEFAULT 0'],
+  ];
+  for (const [col, def] of cols) {
+    try {
+      await pool.execute(`ALTER TABLE users ADD COLUMN ${col} ${def}`);
+      console.log(`✅ Migration: colonne ${col} ajoutée`);
+    } catch (e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') console.warn(`Migration ${col}:`, e.message);
+    }
+  }
+}
+
 async function start() {
   await testConnection();
+  await runPrivacyMigration();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Djhina API démarrée`);
     console.log(`   ► http://localhost:${PORT}`);
