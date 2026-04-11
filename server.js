@@ -154,7 +154,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     app:     'Djhina API',
-    version: '1.0.0',
+    version: '1.2.0',
     env:     process.env.NODE_ENV || 'development',
     time:    new Date().toISOString(),
   });
