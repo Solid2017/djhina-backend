@@ -40,7 +40,7 @@ async function seed() {
         organizer:   'djhina',
         date:        '2026-03-25',
         time:        '09:00',
-        end_time:    '2026-03-27T18:00',
+        end_time:    '2026-03-27 18:00:00',
         location:    'Radisson Blu Hotel',
         city:        "N'Djaména",
         country:     'Tchad',
@@ -60,7 +60,7 @@ async function seed() {
         organizer:   'clens',
         date:        '2026-04-29',
         time:        '10:00',
-        end_time:    '2026-05-02T22:00',
+        end_time:    '2026-05-02 22:00:00',
         location:    'Espace Talino Manu',
         city:        'Mongoh',
         country:     'Tchad',
@@ -119,7 +119,7 @@ async function seed() {
         organizer:   'emeraude',
         date:        '2026-07-10',
         time:        '08:00',
-        end_time:    '2026-07-13T20:00',
+        end_time:    '2026-07-13 20:00:00',
         location:    'Parc de Loisirs de N\'Djaména',
         city:        "N'Djaména",
         country:     'Tchad',
@@ -199,3 +199,4 @@ async function seed() {
 }
 
 seed();
+
