@@ -76,8 +76,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── Fichiers statiques (uploads) ──────────────────────────────
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
-app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
+const uploadPath = path.join(__dirname, uploadDir);
+app.use('/uploads', express.static(uploadPath));
 app.use('/images',  express.static(path.join(__dirname, 'public/images')));
+
+// ── Debug path (temporaire) ───────────────────────────────────
+app.get('/debug-paths', (req, res) => {
+  const fs = require('fs');
+  const eventsDir = path.join(uploadPath, 'events');
+  res.json({
+    __dirname,
+    uploadPath,
+    eventsDir,
+    eventsDirExists: fs.existsSync(eventsDir),
+    eventsFiles: fs.existsSync(eventsDir) ? fs.readdirSync(eventsDir).slice(0, 5) : [],
+    publicAdminEvents: path.join(__dirname, 'public/admin/events'),
+    publicAdminEventsExists: fs.existsSync(path.join(__dirname, 'public/admin/events')),
+  });
+});
 
 // ── Ticket viewer (public, HTML) ──────────────────────────────
 const { viewTicket } = require('./src/controllers/ticketController');
