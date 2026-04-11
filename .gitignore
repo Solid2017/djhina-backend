@@ -1,9 +1,7 @@
 node_modules/
 .env
 uploads/avatars/*
-uploads/events/*
 !uploads/avatars/.gitkeep
-!uploads/events/.gitkeep
 *.log
 npm-debug.log*
 .DS_Store
