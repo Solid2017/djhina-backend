@@ -109,7 +109,7 @@ exports.updateUser = async (req, res) => {
   // Logo / avatar upload
   if (req.file) {
     fields.push('avatar = ?');
-    values.push(`/uploads/avatars/${req.file.filename}`);
+    values.push(`/media/avatars/${req.file.filename}`);
   }
 
   if (!fields.length) return res.status(400).json({ success: false, message: 'Aucune modification fournie.' });
@@ -142,7 +142,7 @@ exports.createUser = async (req, res) => {
 
   const hash   = await bcrypt.hash(password, 12);
   const id     = uuidv4();
-  const avatar = req.file ? `/uploads/avatars/${req.file.filename}` : null;
+  const avatar = req.file ? `/media/avatars/${req.file.filename}` : null;
 
   await pool.execute(
     'INSERT INTO users (id, name, email, phone, password, role, country, city, bio, avatar, is_verified) VALUES (?,?,?,?,?,?,?,?,?,?,1)',
@@ -162,7 +162,7 @@ exports.createEvent = async (req, res) => {
 
   // L'admin peut créer un événement au nom d'un organisateur ou en son propre nom
   const organizer_id = req.body.organizer_id || req.user.id;
-  const cover_image = req.file ? `/uploads/events/${req.file.filename}` : (req.body.cover_image || null);
+  const cover_image = req.file ? `/media/events/${req.file.filename}` : (req.body.cover_image || null);
   const id = uuidv4();
 
   // Séparer date + heure si la valeur vient d'un input datetime-local (ex: "2025-12-31T18:00")
@@ -286,7 +286,7 @@ exports.updateEvent = async (req, res) => {
 
   if (req.file) {
     fields.push('cover_image = ?');
-    values.push(`/uploads/events/${req.file.filename}`);
+    values.push(`/media/events/${req.file.filename}`);
   }
 
   if (!fields.length) {

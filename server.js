@@ -74,26 +74,11 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ── Fichiers statiques (uploads) ──────────────────────────────
-const uploadDir = process.env.UPLOAD_DIR || 'uploads';
-const uploadPath = path.join(__dirname, uploadDir);
-app.use('/uploads', express.static(uploadPath));
-app.use('/images',  express.static(path.join(__dirname, 'public/images')));
-
-// ── Debug path (temporaire) ───────────────────────────────────
-app.get('/debug-paths', (req, res) => {
-  const fs = require('fs');
-  const eventsDir = path.join(uploadPath, 'events');
-  res.json({
-    __dirname,
-    uploadPath,
-    eventsDir,
-    eventsDirExists: fs.existsSync(eventsDir),
-    eventsFiles: fs.existsSync(eventsDir) ? fs.readdirSync(eventsDir).slice(0, 5) : [],
-    publicAdminEvents: path.join(__dirname, 'public/admin/events'),
-    publicAdminEventsExists: fs.existsSync(path.join(__dirname, 'public/admin/events')),
-  });
-});
+// ── Fichiers statiques (uploads → public/media) ──────────────
+// /media sert public/media/ — chemin garanti accessible sur Railway
+app.use('/media',   express.static(path.join(__dirname, 'public/media'), { crossOriginResourcePolicy: false }));
+// Rétrocompatibilité : /uploads redirige vers /media
+app.use('/uploads', (req, res) => res.redirect(301, '/media' + req.path));
 
 // ── Ticket viewer (public, HTML) ──────────────────────────────
 const { viewTicket } = require('./src/controllers/ticketController');
