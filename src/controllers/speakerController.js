@@ -10,7 +10,7 @@ const fs             = require('fs');
 // ── helper photo path ────────────────────────────────────────
 function photoUrl(req, filename) {
   if (!filename) return null;
-  return `${req.protocol}://${req.get('host')}/media/speakers/${filename}`;
+  return `${req.protocol}://${req.get('host')}/admin/media/speakers/${filename}`;
 }
 
 function deletePhotoFile(filename) {
@@ -73,7 +73,7 @@ exports.listSpeakers = async (req, res) => {
   const speakers = rows.map(r => ({
     ...r,
     social_links: typeof r.social_links === 'string' ? JSON.parse(r.social_links) : (r.social_links || {}),
-    photo: r.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${r.photo}` : null,
+    photo: r.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${r.photo}` : null,
     events: eventsMap[r.id] || [],
   }));
 
@@ -107,7 +107,7 @@ exports.createSpeaker = async (req, res) => {
   return res.status(201).json({
     success: true,
     message: 'Speaker créé.',
-    data: { ...speaker, photo: speaker.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${speaker.photo}` : null },
+    data: { ...speaker, photo: speaker.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${speaker.photo}` : null },
   });
 };
 
@@ -135,7 +135,7 @@ exports.getSpeaker = async (req, res) => {
     data: {
       ...speaker,
       social_links: typeof speaker.social_links === 'string' ? JSON.parse(speaker.social_links) : (speaker.social_links || {}),
-      photo: speaker.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${speaker.photo}` : null,
+      photo: speaker.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${speaker.photo}` : null,
       sessions,
     },
   });
@@ -183,7 +183,7 @@ exports.updateSpeaker = async (req, res) => {
   return res.json({
     success: true,
     message: 'Speaker mis à jour.',
-    data: { ...updated, photo: updated.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${updated.photo}` : null },
+    data: { ...updated, photo: updated.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${updated.photo}` : null },
   });
 };
 

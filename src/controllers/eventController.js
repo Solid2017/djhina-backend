@@ -144,7 +144,7 @@ exports.create = async (req, res) => {
     ticket_types,
   } = req.body;
 
-  const cover_image = req.file ? `/media/events/${req.file.filename}` : req.body.cover_image;
+  const cover_image = req.file ? `/admin/media/events/${req.file.filename}` : req.body.cover_image;
   const id = uuidv4();
 
   await pool.execute(
@@ -205,7 +205,7 @@ exports.update = async (req, res) => {
 
   if (req.file) {
     fields.push('cover_image = ?');
-    values.push(`/media/events/${req.file.filename}`);
+    values.push(`/admin/media/events/${req.file.filename}`);
   }
 
   if (!fields.length) {

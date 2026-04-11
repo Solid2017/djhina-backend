@@ -36,7 +36,7 @@ exports.listSessions = async (req, res) => {
       if (!speakersMap[r.session_id]) speakersMap[r.session_id] = [];
       speakersMap[r.session_id].push({
         id: r.id, name: r.name, photo: r.photo
-          ? `${req.protocol}://${req.get('host')}/media/speakers/${r.photo}` : null,
+          ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${r.photo}` : null,
         job_title: r.job_title, company: r.company, role: r.role,
       });
     });
@@ -109,7 +109,7 @@ exports.getSession = async (req, res) => {
       ...session,
       speakers: speakers.map(s => ({
         ...s,
-        photo: s.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${s.photo}` : null,
+        photo: s.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${s.photo}` : null,
       })),
       bookings_count: bookings[0].total,
     },
@@ -248,7 +248,7 @@ exports.getEventAgenda = async (req, res) => {
       if (!speakersMap[r.session_id]) speakersMap[r.session_id] = [];
       speakersMap[r.session_id].push({
         id: r.id, name: r.name,
-        photo: r.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${r.photo}` : null,
+        photo: r.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${r.photo}` : null,
         job_title: r.job_title, company: r.company, bio: r.bio,
         social_links: typeof r.social_links === 'string' ? JSON.parse(r.social_links) : (r.social_links || {}),
         role: r.role,
@@ -357,7 +357,7 @@ exports.getSpeakerProfile = async (req, res) => {
     success: true,
     data: {
       ...speaker,
-      photo: speaker.photo ? `${req.protocol}://${req.get('host')}/media/speakers/${speaker.photo}` : null,
+      photo: speaker.photo ? `${req.protocol}://${req.get('host')}/admin/media/speakers/${speaker.photo}` : null,
       social_links: typeof speaker.social_links === 'string' ? JSON.parse(speaker.social_links) : (speaker.social_links || {}),
       sessions,
     },

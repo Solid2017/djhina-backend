@@ -143,7 +143,7 @@ exports.me = async (req, res) => {
 // ── PUT /api/auth/profile ────────────────────────────────────
 exports.updateProfile = async (req, res) => {
   const { name, phone, country, city, bio } = req.body;
-  const avatar = req.file ? `/media/avatars/${req.file.filename}` : undefined;
+  const avatar = req.file ? `/admin/media/avatars/${req.file.filename}` : undefined;
 
   const fields = [];
   const values = [];
