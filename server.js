@@ -34,12 +34,18 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : ['http://localhost:8081', 'https://djhina.igotech.tech'];
 
+// Ajouter dynamiquement l'URL Railway elle-même (admin panel hébergé sur le même domaine)
+if (process.env.RAILWAY_STATIC_URL) allowedOrigins.push(`https://${process.env.RAILWAY_STATIC_URL}`);
+if (process.env.RAILWAY_PUBLIC_DOMAIN) allowedOrigins.push(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+
 app.use(cors({
   origin: (origin, callback) => {
     // Autoriser les apps mobiles React Native (pas d'Origin) et le dev local
     if (!origin) return callback(null, true);
     if (process.env.NODE_ENV !== 'production') return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Autoriser l'origine Railway elle-même (admin panel)
+    if (origin && origin.includes('railway.app')) return callback(null, true);
     callback(new Error(`CORS bloqué pour l'origine : ${origin}`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
