@@ -77,6 +77,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ── Fichiers statiques (uploads) ──────────────────────────────
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';
 app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
+app.use('/images',  express.static(path.join(__dirname, 'public/images')));
 
 // ── Ticket viewer (public, HTML) ──────────────────────────────
 const { viewTicket } = require('./src/controllers/ticketController');
