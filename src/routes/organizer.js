@@ -41,6 +41,11 @@ router.post  ('/speakers',      upload.single('photo'), ctrl.createSpeaker);
 router.put   ('/speakers/:id',  upload.single('photo'), ctrl.updateSpeaker);
 router.delete('/speakers/:id',  ctrl.deleteSpeaker);
 
+// ── Tickets (tous les evenements de l'organisateur) ──────────
+router.get('/tickets',                    ctrl.allTickets);
+router.get('/tickets/:number',            ctrl.getTicket);
+router.put('/tickets/:number/cancel',     ctrl.cancelTicket);
+
 // ── Notifications ────────────────────────────────────────────
 router.get('/notifications',          ctrl.notifications);
 router.put('/notifications/:id/read', ctrl.markNotifRead);

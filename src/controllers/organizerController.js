@@ -596,6 +596,80 @@ exports.exportAttendees = async (req, res) => {
 //  DIVERS
 // ════════════════════════════════════════════════════════════════
 
+// ── GET /api/organizer/tickets ───────────────────────────────
+// Tous les billets de tous les evenements de cet organisateur
+exports.allTickets = async (req, res) => {
+  const { page = 1, limit = 20, status, search } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+
+  const where  = ['e.organizer_id = ?'];
+  const params = [req.user.id];
+
+  if (status) { where.push('t.status = ?'); params.push(status); }
+  if (search) {
+    where.push('(t.ticket_number LIKE ? OR t.holder_name LIKE ? OR t.holder_email LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const whereClause = where.join(' AND ');
+
+  const [[{ total }]] = await pool.execute(
+    `SELECT COUNT(*) AS total FROM tickets t
+     JOIN events e ON e.id = t.event_id
+     WHERE ${whereClause}`, params
+  );
+
+  const [tickets] = await pool.execute(
+    `SELECT t.ticket_number, t.holder_name, t.holder_email, t.holder_phone,
+       t.status, t.price_paid, t.currency, t.created_at, t.used_at,
+       tt.name AS ticket_type_name,
+       e.title AS event_title, e.date AS event_date
+     FROM tickets t
+     JOIN ticket_types tt ON t.ticket_type_id = tt.id
+     JOIN events e ON e.id = t.event_id
+     WHERE ${whereClause}
+     ORDER BY t.created_at DESC LIMIT ? OFFSET ?`,
+    [...params, parseInt(limit), offset]
+  );
+
+  return res.json({
+    success: true,
+    data: tickets,
+    meta: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) },
+  });
+};
+
+// ── GET /api/organizer/tickets/:number ───────────────────────
+exports.getTicket = async (req, res) => {
+  const [[ticket]] = await pool.execute(
+    `SELECT t.*, tt.name AS ticket_type_name, e.title AS event_title,
+       e.date AS event_date, e.location
+     FROM tickets t
+     JOIN ticket_types tt ON tt.id = t.ticket_type_id
+     JOIN events e ON e.id = t.event_id
+     WHERE t.ticket_number = ? AND e.organizer_id = ?`,
+    [req.params.number, req.user.id]
+  );
+  if (!ticket) return res.status(404).json({ success: false, message: 'Ticket introuvable.' });
+  return res.json({ success: true, data: ticket });
+};
+
+// ── PUT /api/organizer/tickets/:number/cancel ────────────────
+exports.cancelTicket = async (req, res) => {
+  const [[ticket]] = await pool.execute(
+    `SELECT t.id, t.status FROM tickets t
+     JOIN events e ON e.id = t.event_id
+     WHERE t.ticket_number = ? AND e.organizer_id = ?`,
+    [req.params.number, req.user.id]
+  );
+  if (!ticket) return res.status(404).json({ success: false, message: 'Ticket introuvable.' });
+  if (ticket.status !== 'active') {
+    return res.status(400).json({ success: false, message: 'Seul un ticket actif peut etre annule.' });
+  }
+  await pool.execute("UPDATE tickets SET status = 'cancelled' WHERE id = ?", [ticket.id]);
+  return res.json({ success: true, message: 'Ticket annule.' });
+};
+
 exports.listCategories = async (req, res) => {
   const [cats] = await pool.execute('SELECT id, label, slug, color FROM categories ORDER BY label ASC');
   return res.json({ success: true, data: cats });
