@@ -46,7 +46,7 @@ async function fillCategorySelect(selId, selectedId = '') {
   if (!sel) return;
   sel.innerHTML = '<option value="">Aucune catégorie</option>';
   try {
-    const data = await apiFetch('/api/admin/categories');
+    const data = await apiFetch(ME.role === 'admin' ? '/api/admin/categories' : '/api/organizer/categories');
     if (data?.success) {
       data.data.forEach(c => {
         const opt = document.createElement('option');
@@ -111,6 +111,9 @@ function loadSection(section) {
 
 /* ══════════════════════ DASHBOARD ══════════════════════ */
 async function loadDashboard() {
+  if (ME.role !== 'admin') {
+    return loadOrganizerDashboard();
+  }
   let data;
   try { data = await apiFetch('/api/admin/stats'); } catch { return; }
   if (!data?.success) return;
@@ -143,6 +146,39 @@ async function loadDashboard() {
       <td><strong>${fmtNum(p.total)} ${p.currency}</strong></td>
       <td>${fmtDateTime(p.created_at)}</td>
     </tr>`).join('') || `<tr><td colspan="4" class="text-center text-muted">Aucun paiement</td></tr>`;
+}
+
+async function loadOrganizerDashboard() {
+  let data;
+  try { data = await apiFetch('/api/organizer/dashboard'); } catch { return; }
+  if (!data?.success) return;
+  const s = data.data.stats;
+
+  // Remplacer les stats admin par les stats organisateur
+  document.getElementById('statUsers').textContent    = '—';
+  document.getElementById('statOrgs').textContent     = '—';
+  document.getElementById('statEvents').textContent   = fmtNum(s.totalEvents);
+  document.getElementById('statTickets').textContent  = fmtNum(s.totalTickets);
+  document.getElementById('statRevenue').textContent  = fmtNum(s.totalRevenue) + ' XAF';
+  document.getElementById('statScans').textContent    = fmtNum(s.totalScans);
+
+  // Masquer les stats non pertinentes pour l'organisateur
+  document.querySelectorAll('.stat-card.blue, .stat-card.purple').forEach(el => el.style.display = 'none');
+
+  // Mes événements récents
+  const tbody = document.getElementById('recentEventsTbody');
+  tbody.innerHTML = (data.data.recentEvents || []).map(e => `
+    <tr>
+      <td>${e.title}</td>
+      <td>${fmtDate(e.date)}</td>
+      <td>${ME.name}</td>
+      <td>${badgeStatus(e.status)}</td>
+      <td>${fmtNum(e.registered || 0)}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="text-center text-muted">Aucun événement</td></tr>`;
+
+  // Masquer le tableau des paiements récents (admin only)
+  const paySection = document.getElementById('recentPaysTbody');
+  if (paySection) paySection.closest('table')?.closest('.card, div')?.closest('div')?.querySelector('h6')?.parentElement?.style && (paySection.closest('div[style]') || paySection.parentElement.parentElement).style.display = 'none';
 }
 
 /* ══════════════════════ USERS ══════════════════════ */
@@ -446,7 +482,7 @@ async function _loadEditEventData(id) {
   try {
     const [evData, catsData] = await Promise.all([
       apiFetch(`${EAPI}/events/${id}`),
-      apiFetch('/api/admin/categories'),
+      apiFetch(ME.role === 'admin' ? '/api/admin/categories' : '/api/organizer/categories'),
     ]);
 
     if (!evData?.success) { toast('Impossible de charger l\'événement', 'error'); return; }
