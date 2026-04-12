@@ -212,6 +212,16 @@ async function runPrivacyMigration() {
       if (e.code !== 'ER_DUP_FIELDNAME') console.warn(`Migration ${col}:`, e.message);
     }
   }
+
+  // Ajouter pending_review au statut des événements (workflow organisateur)
+  try {
+    await pool.execute(
+      "ALTER TABLE events MODIFY COLUMN status ENUM('draft','pending_review','published','cancelled','completed') DEFAULT 'draft'"
+    );
+    console.log('✅ Migration: statut pending_review disponible');
+  } catch (e) {
+    if (!e.message?.includes('pending_review')) console.warn('Migration events status:', e.message);
+  }
 }
 
 async function start() {
