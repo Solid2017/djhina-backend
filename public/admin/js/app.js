@@ -46,7 +46,7 @@ async function fillCategorySelect(selId, selectedId = '') {
   if (!sel) return;
   sel.innerHTML = '<option value="">Aucune catégorie</option>';
   try {
-    const data = await apiFetch('/api/admin/categories');
+    const data = await apiFetch(ME.role === 'admin' ? '/api/admin/categories' : '/api/organizer/categories');
     if (data?.success) {
       data.data.forEach(c => {
         const opt = document.createElement('option');
@@ -63,6 +63,9 @@ async function fillCategorySelect(selId, selectedId = '') {
 if (!getToken()) window.location.href = 'login.html';
 const ME = getUser();
 if (!ME) window.location.href = 'login.html';
+
+/* ── API base selon le role (admin vs organisateur) ── */
+const EAPI = ME.role === 'admin' ? '/api/admin' : '/api/organizer';
 
 /* ── Init user info ── */
 document.getElementById('userAvatar').textContent = avatar(ME.name);
@@ -108,6 +111,9 @@ function loadSection(section) {
 
 /* ══════════════════════ DASHBOARD ══════════════════════ */
 async function loadDashboard() {
+  if (ME.role !== 'admin') {
+    return loadOrganizerDashboard();
+  }
   let data;
   try { data = await apiFetch('/api/admin/stats'); } catch { return; }
   if (!data?.success) return;
@@ -140,6 +146,39 @@ async function loadDashboard() {
       <td><strong>${fmtNum(p.total)} ${p.currency}</strong></td>
       <td>${fmtDateTime(p.created_at)}</td>
     </tr>`).join('') || `<tr><td colspan="4" class="text-center text-muted">Aucun paiement</td></tr>`;
+}
+
+async function loadOrganizerDashboard() {
+  let data;
+  try { data = await apiFetch('/api/organizer/dashboard'); } catch { return; }
+  if (!data?.success) return;
+  const s = data.data.stats;
+
+  // Remplacer les stats admin par les stats organisateur
+  document.getElementById('statUsers').textContent    = '—';
+  document.getElementById('statOrgs').textContent     = '—';
+  document.getElementById('statEvents').textContent   = fmtNum(s.totalEvents);
+  document.getElementById('statTickets').textContent  = fmtNum(s.totalTickets);
+  document.getElementById('statRevenue').textContent  = fmtNum(s.totalRevenue) + ' XAF';
+  document.getElementById('statScans').textContent    = fmtNum(s.totalScans);
+
+  // Masquer les stats non pertinentes pour l'organisateur
+  document.querySelectorAll('.stat-card.blue, .stat-card.purple').forEach(el => el.style.display = 'none');
+
+  // Mes événements récents
+  const tbody = document.getElementById('recentEventsTbody');
+  tbody.innerHTML = (data.data.recentEvents || []).map(e => `
+    <tr>
+      <td>${e.title}</td>
+      <td>${fmtDate(e.date)}</td>
+      <td>${ME.name}</td>
+      <td>${badgeStatus(e.status)}</td>
+      <td>${fmtNum(e.registered || 0)}</td>
+    </tr>`).join('') || `<tr><td colspan="5" class="text-center text-muted">Aucun événement</td></tr>`;
+
+  // Masquer le tableau des paiements récents (admin only)
+  const paySection = document.getElementById('recentPaysTbody');
+  if (paySection) paySection.closest('table')?.closest('.card, div')?.closest('div')?.querySelector('h6')?.parentElement?.style && (paySection.closest('div[style]') || paySection.parentElement.parentElement).style.display = 'none';
 }
 
 /* ══════════════════════ USERS ══════════════════════ */
@@ -289,7 +328,7 @@ async function loadEvents() {
   grid.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>';
 
   let data;
-  try { data = await apiFetch(`/api/admin/events?${params}`); } catch { data = null; }
+  try { data = await apiFetch(`${EAPI}/events?${params}`); } catch { data = null; }
   if (!data?.success) {
     grid.innerHTML = `<div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div>`;
     return;
@@ -319,7 +358,7 @@ async function loadEvents() {
           <span class="ev-badge" style="background:${sc}22;color:${sc};border:1px solid ${sc}44">${sl}</span>
           ${e.is_featured ? '<span class="ev-badge" style="background:rgba(234,179,8,.2);color:#ca8a04;border:1px solid rgba(234,179,8,.3)">⭐ Vedette</span>' : ''}
         </div>
-        <button class="ev-star-btn" title="${e.is_featured ? 'Retirer' : 'Mettre en avant'}" onclick="featureEvent('${e.id}')">
+        <button class="ev-star-btn" title="${e.is_featured ? 'Retirer' : 'Mettre en avant'}" onclick="featureEvent('${e.id}')" style="${ME.role !== 'admin' ? 'display:none' : ''}">
           ${e.is_featured ? '⭐' : '☆'}
         </button>
       </div>
@@ -388,7 +427,7 @@ document.getElementById('formCreateEvent').addEventListener('submit', async (e) 
 
   try {
     const token = getToken();
-    const res = await fetch(`${API_BASE}/api/admin/events`, {
+    const res = await fetch(`${API_BASE}${EAPI}/events`, {
       method: 'POST',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: fd,
@@ -412,7 +451,7 @@ document.getElementById('formCreateEvent').addEventListener('submit', async (e) 
 });
 
 async function setEventStatus(id, status) {
-  const data = await apiFetch(`/api/admin/events/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
+  const data = await apiFetch(`${EAPI}/events/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
   if (data?.success) toast(`Statut mis à jour : ${status}`, 'success');
   else { toast(data?.message || 'Erreur', 'error'); loadEvents(); }
 }
@@ -442,8 +481,8 @@ function openEditEvent(id) {
 async function _loadEditEventData(id) {
   try {
     const [evData, catsData] = await Promise.all([
-      apiFetch(`/api/admin/events/${id}`),
-      apiFetch('/api/admin/categories'),
+      apiFetch(`${EAPI}/events/${id}`),
+      apiFetch(ME.role === 'admin' ? '/api/admin/categories' : '/api/organizer/categories'),
     ]);
 
     if (!evData?.success) { toast('Impossible de charger l\'événement', 'error'); return; }
@@ -524,7 +563,7 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
 
   try {
     const token = getToken();
-    const putRes = await fetch(`${API_BASE}/api/admin/events/${id}`, {
+    const putRes = await fetch(`${API_BASE}${EAPI}/events/${id}`, {
       method: 'PUT',
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: fd,
@@ -533,7 +572,7 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
     if (data?.success) {
       // Mettre à jour le statut séparément
       const newStatus = document.getElementById('editEvStatus').value;
-      await apiFetch(`/api/admin/events/${id}/status`, {
+      await apiFetch(`${EAPI}/events/${id}/status`, {
         method: 'PUT', body: JSON.stringify({ status: newStatus }),
       });
       setBtnLoading(btn, false);
@@ -555,7 +594,7 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
 
 async function deleteEvent(id, title, fromModal = false) {
   if (!confirm(`Supprimer / annuler l'événement "${title}" ?\nLes tickets actifs seront maintenus.`)) return;
-  const data = await apiFetch(`/api/admin/events/${id}`, { method:'DELETE' });
+  const data = await apiFetch(`${EAPI}/events/${id}`, { method:'DELETE' });
   if (data?.success) {
     toast('Événement annulé', 'success');
     if (fromModal) closeModal('modalEditEvent');
@@ -576,7 +615,7 @@ function addTicketTypeRow(tbodyId, tt = {}) {
 }
 
 async function featureEvent(id) {
-  const data = await apiFetch(`/api/admin/events/${id}/feature`, { method:'PUT' });
+  const data = await apiFetch(`${EAPI}/events/${id}/feature`, { method:'PUT' });
   if (data?.success) { toast(data.data.is_featured ? 'Mis en avant ⭐' : 'Retiré de la une', 'success'); loadEvents(); }
   else toast(data?.message || 'Erreur', 'error');
 }
@@ -593,7 +632,8 @@ async function loadTickets() {
   document.getElementById('ticketsTbody').innerHTML =
     '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--dj-muted)"><i class="bi bi-hourglass-split me-1"></i>Chargement…</td></tr>';
   let data;
-  try { data = await apiFetch(`/api/admin/tickets?${params}`); } catch { data = null; }
+  const ticketsApi = ME.role === 'admin' ? '/api/admin/tickets' : '/api/organizer/tickets';
+  try { data = await apiFetch(`${ticketsApi}?${params}`); } catch { data = null; }
   if (!data?.success) {
     document.getElementById('ticketsTbody').innerHTML =
       `<tr><td colspan="8"><div class="empty-state" style="color:#dc2626"><i class="bi bi-exclamation-circle"></i> ${data?.message || 'Erreur serveur'}</div></td></tr>`;
@@ -633,7 +673,8 @@ async function viewTicketModal(number) {
   document.getElementById('ticketDetailContent').innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
   document.getElementById('ticketModalFooter').innerHTML   = '<button type="button" class="btn-dj ghost" onclick="closeModal(\'modalViewTicket\')">Fermer</button>';
 
-  const data = await apiFetch(`/api/admin/tickets/${number}`);
+  const ticketApiBase = ME.role === 'admin' ? '/api/admin/tickets' : '/api/organizer/tickets';
+  const data = await apiFetch(`${ticketApiBase}/${number}`);
   if (!data?.success) {
     document.getElementById('ticketDetailContent').innerHTML = `<div class="empty-state"><i class="bi bi-exclamation-circle"></i>${data?.message || 'Erreur'}</div>`;
     return;
@@ -682,7 +723,8 @@ async function viewTicketModal(number) {
 async function cancelTicket(number, fromModal = false) {
   const reason = prompt('Motif d\'annulation (optionnel) :') ?? null;
   if (reason === null && !confirm('Annuler sans motif ?')) return;
-  const data = await apiFetch(`/api/admin/tickets/${number}/cancel`, {
+  const cancelApi = ME.role === 'admin' ? `/api/admin/tickets/${number}/cancel` : `/api/organizer/tickets/${number}/cancel`;
+  const data = await apiFetch(cancelApi, {
     method: 'PUT',
     body: JSON.stringify({ reason }),
   });
@@ -881,7 +923,7 @@ async function loadOrganizers() {
 
   // Événements par organisateur (arrière-plan)
   data.data.forEach(o => {
-    apiFetch(`/api/admin/events?organizer_id=${o.id}&limit=1`).then(d => {
+    apiFetch(`${EAPI}/events?organizer_id=${o.id}&limit=1`).then(d => {
       const el = document.getElementById(`orgEvCount-${o.id}`);
       if (el && d?.meta) el.innerHTML = `<i class="bi bi-calendar-event"></i>${fmtNum(d.meta.total)} événement${d.meta.total!==1?'s':''}`;
     }).catch(() => {});
@@ -901,7 +943,7 @@ async function viewOrg(id) {
   const o = data.data;
 
   let evData;
-  try { evData = await apiFetch(`/api/admin/events?page=1&limit=5`); } catch { evData = null; }
+  try { evData = await apiFetch(`${EAPI}/events?page=1&limit=5`); } catch { evData = null; }
 
   document.getElementById('orgDetailContent').innerHTML = `
     <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--dj-border)">
@@ -949,8 +991,8 @@ async function viewEvent(id) {
   el.innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
 
   const [evRes, sessRes] = await Promise.all([
-    apiFetch(`/api/admin/events/${id}`),
-    apiFetch(`/api/admin/events/${id}/sessions`),
+    apiFetch(`${EAPI}/events/${id}`),
+    apiFetch(`${EAPI}/events/${id}/sessions`),
   ]);
   if (!evRes?.success) { el.innerHTML = '<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur de chargement</div>'; return; }
 
@@ -1021,7 +1063,7 @@ async function viewSpeaker(id) {
   openModal('modalViewSpeaker');
   document.getElementById('speakerDetailContent').innerHTML = '<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement...</div>';
 
-  const data = await apiFetch(`/api/admin/speakers/${id}`);
+  const data = await apiFetch(`${EAPI}/speakers/${id}`);
   if (!data?.success) { document.getElementById('speakerDetailContent').innerHTML = '<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur</div>'; return; }
   const s = data.data;
   const sl = (typeof s.social_links === 'string' ? JSON.parse(s.social_links) : s.social_links) || {};
@@ -1328,7 +1370,7 @@ async function loadSpeakers(page = 1) {
   const grid = document.getElementById('speakersGrid');
   grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i> Chargement…</div>`;
 
-  const data = await apiFetch(`/api/admin/speakers?${params}`);
+  const data = await apiFetch(`${EAPI}/speakers?${params}`);
   if (!data?.success) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;color:#f87171"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement</div>`;
     return;
@@ -1396,7 +1438,7 @@ function openCreateSpeakerModal() {
 async function openEditSpeakerModal(id) {
   openModal('modalEditSpeaker');
   document.getElementById('editSpId').value = id;
-  const data = await apiFetch(`/api/admin/speakers/${id}`);
+  const data = await apiFetch(`${EAPI}/speakers/${id}`);
   if (!data?.success) { toast('Impossible de charger le speaker', 'error'); return; }
   const s = data.data;
   const sl = s.social_links || {};
@@ -1449,7 +1491,7 @@ document.getElementById('formCreateSpeaker').addEventListener('submit', async (e
   const photoFile = document.getElementById('newSpPhoto').files[0];
   if (photoFile) fd.append('photo', photoFile);
 
-  const data = await apiFetch('/api/admin/speakers', { method: 'POST', body: fd, isFormData: true });
+  const data = await apiFetch(`${EAPI}/speakers`, { method: 'POST', body: fd, isFormData: true });
   setBtnLoading(btn, false);
   if (data?.success) {
     toast('Speaker créé avec succès', 'success');
@@ -1475,7 +1517,7 @@ document.getElementById('formEditSpeaker').addEventListener('submit', async (e) 
   const photoFile = document.getElementById('editSpPhoto').files[0];
   if (photoFile) fd.append('photo', photoFile);
 
-  const data = await apiFetch(`/api/admin/speakers/${id}`, { method: 'PUT', body: fd, isFormData: true });
+  const data = await apiFetch(`${EAPI}/speakers/${id}`, { method: 'PUT', body: fd, isFormData: true });
   setBtnLoading(btn, false);
   if (data?.success) {
     toast('Speaker mis à jour', 'success');
@@ -1486,7 +1528,7 @@ document.getElementById('formEditSpeaker').addEventListener('submit', async (e) 
 
 async function deleteSpeaker(id, name) {
   if (!confirm(`Supprimer le speaker "${name}" ?\nIl sera retiré de toutes les sessions.`)) return;
-  const data = await apiFetch(`/api/admin/speakers/${id}`, { method: 'DELETE' });
+  const data = await apiFetch(`${EAPI}/speakers/${id}`, { method: 'DELETE' });
   if (data?.success) { toast('Speaker supprimé', 'success'); loadSpeakers(_spPage); }
   else toast(data?.message || 'Erreur', 'error');
 }
@@ -1509,7 +1551,7 @@ async function loadAgenda() {
   const countEl   = document.getElementById('agendaSessionCount');
   container.innerHTML = `<div class="empty-state"><i class="bi bi-hourglass-split"></i>Chargement…</div>`;
 
-  const data = await apiFetch(`/api/admin/events/${_agendaEventId}/sessions`);
+  const data = await apiFetch(`${EAPI}/events/${_agendaEventId}/sessions`);
   if (!data?.success) {
     container.innerHTML = `<div class="empty-state" style="color:#f87171"><i class="bi bi-exclamation-triangle"></i>Erreur de chargement</div>`;
     return;
@@ -1568,7 +1610,7 @@ async function loadAgenda() {
 async function loadSpeakerPickerInto(containerId, selectedIds = []) {
   // On charge les speakers de l'organisateur, on met à jour le cache
   if (!_allSpeakers.length) {
-    const data = await apiFetch('/api/admin/speakers?limit=200');
+    const data = await apiFetch(`${EAPI}/speakers?limit=200`);
     _allSpeakers = data?.data || [];
   }
   const container = document.getElementById(containerId);
@@ -1612,7 +1654,7 @@ async function quickAddSpeaker(pickerId, nameId, titleId, companyId, formId) {
   if (title)   fd.append('job_title', title);
   if (company) fd.append('company', company);
 
-  const data = await apiFetch('/api/admin/speakers', { method: 'POST', body: fd });
+  const data = await apiFetch(`${EAPI}/speakers`, { method: 'POST', body: fd });
   if (!data?.success) { toast(data?.message || 'Erreur lors de la création', 'error'); return; }
 
   const sp = data.data;
@@ -1691,7 +1733,7 @@ document.getElementById('formCreateSession').addEventListener('submit', async (e
     access_conditions: document.getElementById('newSessAccess').value,
     speakers:          getPickedSpeakers('newSessSpeakerPicker'),
   };
-  const data = await apiFetch(`/api/admin/events/${_agendaEventId}/sessions`, { method: 'POST', body: JSON.stringify(body) });
+  const data = await apiFetch(`${EAPI}/events/${_agendaEventId}/sessions`, { method: 'POST', body: JSON.stringify(body) });
   setBtnLoading(btn, false);
   if (data?.success) {
     toast('Session créée', 'success');
