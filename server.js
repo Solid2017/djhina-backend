@@ -222,6 +222,14 @@ async function runPrivacyMigration() {
   } catch (e) {
     if (!e.message?.includes('pending_review')) console.warn('Migration events status:', e.message);
   }
+
+  // Ajouter video_url aux événements
+  try {
+    await pool.execute("ALTER TABLE events ADD COLUMN video_url VARCHAR(500) NULL AFTER cover_image");
+    console.log('✅ Migration: colonne video_url ajoutée aux événements');
+  } catch (e) {
+    if (e.code !== 'ER_DUP_FIELDNAME') console.warn('Migration video_url:', e.message);
+  }
 }
 
 async function start() {

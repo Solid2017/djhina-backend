@@ -655,6 +655,14 @@
               <img style="width:100%;height:140px;object-fit:cover;display:block">
             </div>
           </div>
+          <div class="form-grp">
+            <label>Vidéo de présentation <span style="font-size:.7rem;color:var(--dj-muted)">(MP4, MOV, WEBM — max 200 Mo)</span></label>
+            <input id="editEvVideo" type="file" class="dj-input" accept="video/*" style="padding:.4rem" onchange="previewVideo(this,'editEvVideoPreview')">
+            <div id="editEvVideoPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;background:var(--dj-surface2)">
+              <video controls style="width:100%;max-height:160px;display:block;border-radius:8px"></video>
+            </div>
+            <div id="editEvVideoExisting" style="display:none;margin-top:.5rem"></div>
+          </div>
         </div>
         <!-- Types de billets -->
         <div style="margin-top:.5rem;border-top:1px solid var(--dj-border);padding-top:.85rem">
@@ -754,6 +762,13 @@
             <input id="newEvCover" type="file" class="dj-input" accept="image/*" style="padding:.4rem" onchange="previewImage(this,'newEvPreview')">
             <div id="newEvPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;max-height:140px;background:var(--dj-surface2)">
               <img style="width:100%;height:140px;object-fit:cover;display:block">
+            </div>
+          </div>
+          <div class="form-grp">
+            <label>Vidéo de présentation <span style="font-size:.7rem;color:var(--dj-muted)">(MP4, MOV, WEBM — max 200 Mo)</span></label>
+            <input id="newEvVideo" type="file" class="dj-input" accept="video/*" style="padding:.4rem" onchange="previewVideo(this,'newEvVideoPreview')">
+            <div id="newEvVideoPreview" style="display:none;margin-top:.5rem;border-radius:8px;overflow:hidden;background:var(--dj-surface2)">
+              <video controls style="width:100%;max-height:160px;display:block;border-radius:8px"></video>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ const ctrl    = require('../controllers/organizerController');
 const { authenticate }  = require('../middleware/auth');
 const { requireRole }   = require('../middleware/roles');
 const upload            = require('../middleware/upload');
+const { uploadEvent }   = require('../middleware/upload');
 
 // Toutes les routes necessitent organisateur OU admin
 router.use(authenticate, requireRole('organizer', 'admin'));
@@ -15,9 +16,9 @@ router.get('/categories', ctrl.listCategories);
 
 // ── Evenements ───────────────────────────────────────────────
 router.get   ('/events',                    ctrl.myEvents);
-router.post  ('/events',                    upload.single('cover'), ctrl.createEvent);
+router.post  ('/events',                    uploadEvent, ctrl.createEvent);
 router.get   ('/events/:id',                ctrl.getEvent);
-router.put   ('/events/:id',                upload.single('cover'), ctrl.updateEvent);
+router.put   ('/events/:id',                uploadEvent, ctrl.updateEvent);
 router.delete('/events/:id',                ctrl.deleteEvent);
 router.post  ('/events/:id/submit',         ctrl.submitEvent);
 router.put   ('/events/:id/status',         ctrl.setEventStatus);

@@ -40,6 +40,17 @@ function previewImage(input, previewId) {
   reader.readAsDataURL(file);
 }
 
+/* ── Prévisualisation instantanée de vidéo (URL.createObjectURL) ── */
+function previewVideo(input, previewId) {
+  const wrap = document.getElementById(previewId);
+  if (!wrap) return;
+  const file = input.files[0];
+  if (!file) { wrap.style.display = 'none'; return; }
+  const video = wrap.querySelector('video');
+  video.src = URL.createObjectURL(file);
+  wrap.style.display = 'block';
+}
+
 /* ── Load categories into a <select> ── */
 async function fillCategorySelect(selId, selectedId = '') {
   const sel = document.getElementById(selId);
@@ -424,6 +435,8 @@ document.getElementById('formCreateEvent').addEventListener('submit', async (e) 
   fd.append('status', document.getElementById('newEvStatus').value);
   const coverFile = document.getElementById('newEvCover').files[0];
   if (coverFile) fd.append('cover', coverFile);
+  const videoFile = document.getElementById('newEvVideo').files[0];
+  if (videoFile) fd.append('video', videoFile);
 
   try {
     const token = getToken();
@@ -512,6 +525,24 @@ async function _loadEditEventData(id) {
       }
     }
 
+    // Réinitialiser le champ vidéo
+    document.getElementById('editEvVideo').value = '';
+    const vidPreview = document.getElementById('editEvVideoPreview');
+    if (vidPreview) vidPreview.style.display = 'none';
+    // Afficher la vidéo existante si elle existe
+    const vidExisting = document.getElementById('editEvVideoExisting');
+    if (vidExisting) {
+      if (e.video_url) {
+        const videoSrc = e.video_url.startsWith('http') ? e.video_url : `${API_BASE}${e.video_url}`;
+        vidExisting.style.display = 'block';
+        vidExisting.innerHTML = `<div style="font-size:.72rem;color:var(--dj-muted);margin-bottom:.3rem">Vidéo actuelle :</div>
+          <video src="${videoSrc}" controls style="width:100%;max-height:160px;border-radius:8px;display:block"></video>`;
+      } else {
+        vidExisting.style.display = 'none';
+        vidExisting.innerHTML = '';
+      }
+    }
+
     // Catégories
     const sel = document.getElementById('editEvCategory');
     sel.innerHTML = '<option value="">Aucune catégorie</option>';
@@ -560,6 +591,8 @@ document.getElementById('formEditEvent').addEventListener('submit', async (ev) =
   if (cat) fd.append('category_id', cat);
   const coverFile = document.getElementById('editEvCover').files[0];
   if (coverFile) fd.append('cover', coverFile);
+  const editVideoFile = document.getElementById('editEvVideo').files[0];
+  if (editVideoFile) fd.append('video', editVideoFile);
 
   try {
     const token = getToken();
@@ -1028,8 +1061,10 @@ async function viewEvent(id) {
   }).join('') : `<div class="empty-state" style="padding:1.5rem"><i class="bi bi-calendar-x"></i> Aucune session créée pour cet événement</div>`;
 
   const sc = EVENT_STATUS_COLOR[e.status] || '#6b7280';
+  const videoSrc = e.video_url ? (e.video_url.startsWith('http') ? e.video_url : `${API_BASE}${e.video_url}`) : null;
   el.innerHTML = `
     ${coverSrc ? `<div style="height:180px;overflow:hidden;position:relative"><img src="${coverSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'"><div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 50%,rgba(0,0,0,.55))"></div></div>` : ''}
+    ${videoSrc ? `<div style="padding:.75rem 1.4rem 0"><div style="font-size:.7rem;font-weight:700;color:var(--dj-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.4rem"><i class="bi bi-play-circle me-1"></i>Vidéo de présentation</div><video src="${videoSrc}" controls style="width:100%;border-radius:10px;max-height:220px;background:#000;display:block"></video></div>` : ''}
     <div style="padding:1.25rem 1.4rem">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:1rem">
         <div>

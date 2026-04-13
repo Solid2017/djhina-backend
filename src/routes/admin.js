@@ -6,6 +6,7 @@ const notifCtrl   = require('../controllers/notificationController');
 const { authenticate } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
 const upload = require('../middleware/upload');
+const { uploadEvent } = require('../middleware/upload');
 
 // Wrapper qui catch les erreurs async et les passe à Express
 const w = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -25,9 +26,9 @@ router.delete('/users/:id',    w(ctrl.deleteUser));
 
 // ── Événements ────────────────────────────────────────────────
 router.get   ('/events',          w(ctrl.listEvents));
-router.post  ('/events',          upload.single('cover'), w(ctrl.createEvent));
+router.post  ('/events',          uploadEvent, w(ctrl.createEvent));
 router.get   ('/events/:id',      w(ctrl.getEvent));
-router.put   ('/events/:id',      upload.single('cover'), w(ctrl.updateEvent));
+router.put   ('/events/:id',      uploadEvent, w(ctrl.updateEvent));
 router.put   ('/events/:id/status',  w(ctrl.setEventStatus));
 router.put   ('/events/:id/feature', w(ctrl.featureEvent));
 router.delete('/events/:id',         w(ctrl.deleteEvent));

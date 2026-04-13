@@ -103,7 +103,10 @@ exports.createEvent = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Titre, date et lieu sont requis.' });
   }
 
-  const cover_image = req.file ? `/admin/media/events/${req.file.filename}` : (req.body.cover_image || null);
+  const coverFile = req.files?.cover?.[0];
+  const videoFile = req.files?.video?.[0];
+  const cover_image = coverFile ? `/admin/media/events/${coverFile.filename}` : (req.body.cover_image || null);
+  const video_url   = videoFile ? `/admin/media/videos/${videoFile.filename}` : (req.body.video_url || null);
   const id = uuidv4();
 
   let eventDate = date, eventTime = time || null;
@@ -114,10 +117,10 @@ exports.createEvent = async (req, res) => {
   await pool.execute(
     `INSERT INTO events
       (id, organizer_id, category_id, title, subtitle, description,
-       cover_image, date, time, end_time, location, city, country, capacity, tags, status)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       cover_image, video_url, date, time, end_time, location, city, country, capacity, tags, status)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, req.user.id, category_id || null, title, subtitle || null, description || null,
-     cover_image, eventDate, eventTime, eventEndTime, location,
+     cover_image, video_url, eventDate, eventTime, eventEndTime, location,
      city || "N'Djamena", country || 'Tchad', capacity || 0, JSON.stringify(tags || []), 'draft']
   );
 
@@ -150,7 +153,8 @@ exports.updateEvent = async (req, res) => {
     }
   });
 
-  if (req.file) { fields.push('cover_image = ?'); values.push(`/admin/media/events/${req.file.filename}`); }
+  if (req.files?.cover?.[0]) { fields.push('cover_image = ?'); values.push(`/admin/media/events/${req.files.cover[0].filename}`); }
+  if (req.files?.video?.[0]) { fields.push('video_url = ?'); values.push(`/admin/media/videos/${req.files.video[0].filename}`); }
   if (!fields.length) return res.status(400).json({ success: false, message: 'Aucune modification fournie.' });
 
   values.push(req.params.id, req.user.id);
