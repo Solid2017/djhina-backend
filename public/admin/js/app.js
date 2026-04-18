@@ -189,7 +189,10 @@ async function loadOrganizerDashboard() {
 
   // Masquer le tableau des paiements récents (admin only)
   const paySection = document.getElementById('recentPaysTbody');
-  if (paySection) paySection.closest('table')?.closest('.card, div')?.closest('div')?.querySelector('h6')?.parentElement?.style && (paySection.closest('div[style]') || paySection.parentElement.parentElement).style.display = 'none';
+  if (paySection) {
+    const payCard = paySection.closest('.dj-card');
+    if (payCard) payCard.style.display = 'none';
+  }
 }
 
 /* ══════════════════════ USERS ══════════════════════ */
